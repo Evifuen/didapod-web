@@ -1,0 +1,7 @@
+﻿streamlit
+edge-tts
+pydub
+SpeechRecognition
+deep-translator
+httpx
+Pillow
