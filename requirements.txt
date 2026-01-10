@@ -4,4 +4,5 @@ pydub
 SpeechRecognition
 deep-translator
 httpx
+request
 Pillow
