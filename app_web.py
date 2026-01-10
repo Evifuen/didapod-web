@@ -6,99 +6,64 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. SETTINGS & STYLE ---
-st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
+# --- VISUAL SETUP (Keep it light) ---
+st.set_page_config(page_title="DIDAPOD", page_icon="🎙️")
 
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }
-    .main-title { color: white; font-size: 40px; font-weight: 800; margin-bottom: 0px; }
-    .sub-title { color: #94a3b8; font-size: 18px; margin-bottom: 30px; }
-    .stButton>button { 
-        background-color: #7c3aed !important; color: white !important; 
-        border-radius: 10px; padding: 15px 30px; font-weight: bold; width: 100%; 
-    }
-    label, .stMarkdown p, .stSuccess, .stInfo { color: white !important; }
+    .stApp { background-color: #0f172a; }
+    .main-title { color: white; font-size: 32px; font-weight: bold; }
+    label, p { color: #94a3b8 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LOGIN SYSTEM ---
+# --- LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
-    st.markdown("<h2 style='color:white;'>🔐 DidactAI Restricted Access</h2>", unsafe_allow_html=True)
-    with st.form("login"):
-        user = st.text_input("Username")
-        pw = st.text_input("Password", type="password")
-        if st.form_submit_button("Login"):
-            if user == "admin" and pw == "didactai2026":
-                st.session_state["auth"] = True
-                st.rerun()
-            else: st.error("Invalid credentials")
+    user = st.text_input("Username")
+    pw = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if user == "admin" and pw == "didactai2026":
+            st.session_state["auth"] = True
+            st.rerun()
     st.stop()
 
-# --- 3. INTERFACE ---
-col1, col2 = st.columns([1, 4])
-with col1:
-    if os.path.exists("logo.png"): st.image("logo.png", width=80)
-with col2:
-    st.markdown('<p class="main-title">DIDAPOD</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-title">Powered by DidactAI-US</p>', unsafe_allow_html=True)
+# --- HEADER ---
+st.markdown('<p class="main-title">DIDAPOD by DidactAI</p>', unsafe_allow_html=True)
 
-st.markdown("### 🗺️ Workflow")
-c1, c2, c3, c4 = st.columns(4)
-c1.info("1. Upload")
-c2.info("2. Language")
-c3.info("3. Dubbing")
-c4.info("4. Finish")
-
-st.markdown("---")
-target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
-uploaded_file = st.file_uploader("Upload your podcast (MP3 or WAV)", type=["mp3", "wav"])
+target_lang = st.selectbox("Target Language:", ["English", "Spanish"])
+uploaded_file = st.file_uploader("Upload Audio", type=["mp3", "wav"])
 
 if uploaded_file:
-    st.audio(uploaded_file)
-    
-    if st.button("🚀 START AI DUBBING"):
+    if st.button("🚀 START DUBBING"):
         try:
-            with st.status("🤖 Processing audio...", expanded=True) as status:
-                st.write("⏳ Step 1: Preparing file...")
-                with open("temp_input.mp3", "wb") as f:
+            with st.spinner("Processing... Please wait"):
+                # Save temp file
+                with open("temp.mp3", "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 
-                audio = AudioSegment.from_file("temp_input.mp3")
-                audio = audio.set_frame_rate(16000).set_channels(1) # Optimizar para IA
-                audio.export("temp_wav.wav", format="wav")
+                # Convert to small WAV (Crucial to avoid Broken Pipe)
+                audio = AudioSegment.from_file("temp.mp3")
+                audio = audio.set_frame_rate(16000).set_channels(1)
+                audio.export("temp.wav", format="wav")
 
-                st.write("🎙️ Step 2: Transcribing (this may take a minute)...")
+                # Transcription
                 r = sr.Recognizer()
-                with sr.AudioFile("temp_wav.wav") as source:
-                    # Ajuste para evitar el 'Broken pipe' en archivos largos
+                with sr.AudioFile("temp.wav") as source:
                     audio_data = r.record(source)
                     text_orig = r.recognize_google(audio_data, language="es-ES")
 
-                st.write("🌍 Step 3: Translating content...")
-                codes = {"English": "en", "Spanish": "es", "French": "fr"}
-                text_trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text_orig)
+                # Translation
+                lang_code = "en" if target_lang == "English" else "es"
+                text_trans = GoogleTranslator(source='auto', target=lang_code).translate(text_orig)
 
-                st.write("🔊 Step 4: Generating AI Voice (Emma)...")
-                voice_map = {
-                    "English": "en-US-EmmaMultilingualNeural",
-                    "Spanish": "es-ES-ElviraNeural",
-                    "French": "fr-FR-DeniseNeural"
-                }
+                # Voice
+                voice = "en-US-EmmaMultilingualNeural" if lang_code == "en" else "es-ES-ElviraNeural"
+                asyncio.run(edge_tts.Communicate(text_trans, voice).save("out.mp3"))
                 
-                output_file = "didapod_result.mp3"
-                communicate = edge_tts.Communicate(text_trans, voice_map[target_lang])
-                asyncio.run(communicate.save(output_file))
-                
-                status.update(label="Dubbing Complete!", state="complete")
-            
-            st.balloons()
-            with open(output_file, "rb") as f:
-                st.download_button("📥 Download Dubbed Podcast", f, file_name=output_file)
-        
+                st.success("Done!")
+                st.audio("out.mp3")
+                with open("out.mp3", "rb") as f:
+                    st.download_button("Download result", f, "result.mp3")
         except Exception as e:
-            st.error(f"Technical detail: {e}")
-
-# --- 4. FOOTER ---
-st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US | AI Enterprise Solutions</small></center>", unsafe_allow_html=True)
+            st.error(f"Error: {e}. Try a shorter clip first.")
