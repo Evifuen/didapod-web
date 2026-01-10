@@ -2,7 +2,6 @@ import streamlit as st
 import edge_tts
 import asyncio
 import os
-import base64
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
@@ -10,28 +9,22 @@ from pydub import AudioSegment
 # --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
-# Función mágica para que el logo cargue sí o sí
-def get_base64_of_bin_file(bin_file):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-# Intentamos cargar el logo local
-try:
-    logo_base64 = get_base64_of_bin_file('logo.png')
-    logo_html = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="vertical-align: middle; margin-right: 20px; border-radius: 10px;">'
-except:
-    logo_html = "🎙️ " # Respaldo si el archivo no existe
+# URL DIRECTA DE TU LOGO (PostImages)
+URL_LOGO = "https://i.postimg.cc/1z07Pqqf/logo.png"
 
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #0f172a !important; }}
     
-    /* ENCABEZADO PERSONALIZADO */
-    .main-header {{
+    /* ESTILO PARA EL LOGO Y TÍTULO */
+    .header-box {{
         display: flex;
         align-items: center;
-        margin-bottom: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        border: 1px solid rgba(124, 58, 237, 0.3);
     }}
 
     /* BOTÓN "CLICK HERE" MORADO CON TEXTO BLANCO */
@@ -40,12 +33,14 @@ st.markdown(f"""
         border: 2px solid white !important; 
         border-radius: 12px !important;
     }}
+    /* FORZAR VISIBILIDAD DEL TEXTO */
     .stExpander summary, .stExpander summary * {{ 
         color: white !important; 
         font-weight: 800 !important; 
-        font-size: 18px !important;
+        font-size: 20px !important;
         text-transform: uppercase;
     }}
+    .stExpander svg {{ fill: white !important; }}
     
     /* BOTONES DE ACCIÓN */
     .stButton>button, .stDownloadButton>button {{ 
@@ -60,12 +55,6 @@ st.markdown(f"""
     
     h1, h2, h3, label, p, span {{ color: white !important; }}
     </style>
-    
-    <div class="main-header">
-        {logo_html}
-        <h1 style="display: inline; margin: 0; color: white;">DIDAPOD PRO</h1>
-    </div>
-    <p style="color: #94a3b8 !important; margin-left: 100px; margin-top: -15px;">Safe Cascade Dubbing System</p>
     """, unsafe_allow_html=True)
 
 # --- 2. LOGIN ---
@@ -79,8 +68,19 @@ if not st.session_state["auth"]:
                 st.rerun()
     st.stop()
 
-# --- 3. PROCESAMIENTO ---
-target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French"])
+# --- 3. ENCABEZADO (CON URL DIRECTA) ---
+st.markdown(f"""
+    <div class="header-box">
+        <img src="{URL_LOGO}" width="90" style="margin-right: 20px; border-radius: 10px;">
+        <div>
+            <h1 style="margin: 0; font-size: 35px;">DIDAPOD PRO</h1>
+            <p style="margin: 0; color: #94a3b8 !important;">Safe Cascade Dubbing by DidactAI-US</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- 4. PROCESAMIENTO ---
+target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
 if up_file:
@@ -114,10 +114,21 @@ if up_file:
             
             st.balloons()
             
- # --- RESULTADO FINAL --- st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True) st.markdown("<h3 style='text-align:center;'>✅ Your Podcast is Ready</h3>", unsafe_allow_html=True) # Botón de escuchar directamente st.audio("result.mp3") # Botón de descarga with open("result.mp3", "rb") as f: st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3") st.markdown("</div>", unsafe_allow_html=True)
+            # --- RESULTADO FINAL ---
+            st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
+            
+            with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
+                st.audio("result.mp3")
+            
+            st.write("")
+            with open("result.mp3", "rb") as f:
+                st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
