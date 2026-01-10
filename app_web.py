@@ -79,19 +79,7 @@ with col_r:
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
 st.write("---")
-# 3. ENCABEZADO CON LOGO
-try:
-    img = Image.open("logo.png")
-    col_l, col_r = st.columns([1, 4])
-    with col_l:
-        st.image(img, width=120)
-    with col_r:
-        st.markdown('<p class="main-title">DIDAPOD</p>', unsafe_allow_html=True)
-        st.write("<p style='color: #94a3b8;'>Powered by DidactAI</p>", unsafe_allow_html=True)
-except:
-    st.markdown('<p class="main-title">DIDAPOD by DidactAI</p>', unsafe_allow_html=True)
 
-st.write("---")
 # --- 4. PROCESAMIENTO ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
@@ -144,6 +132,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
