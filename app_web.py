@@ -7,53 +7,68 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
-# Función para convertir el logo a código base64 para que no falle la ruta
-def get_base64_logo(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
+# Función mágica para que el logo cargue sí o sí
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
-logo_data = get_base64_logo("logo.png")
+# Intentamos cargar el logo local
+try:
+    logo_base64 = get_base64_of_bin_file('logo.png')
+    logo_html = f'<img src="data:image/png;base64,{logo_base64}" width="80" style="vertical-align: middle; margin-right: 20px; border-radius: 10px;">'
+except:
+    logo_html = "🎙️ " # Respaldo si el archivo no existe
 
-# --- 2. ESTILO CSS PARA FORZAR COLORES ---
-st.markdown("""
+st.markdown(f"""
     <style>
-    .stApp { background-color: #0f172a !important; }
+    .stApp {{ background-color: #0f172a !important; }}
     
-    /* BOTÓN DE ESCUCHA (EXPANDER) FORZADO A MORADO Y BLANCO */
-    .stExpander { 
+    /* ENCABEZADO PERSONALIZADO */
+    .main-header {{
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+    }}
+
+    /* BOTÓN "CLICK HERE" MORADO CON TEXTO BLANCO */
+    .stExpander {{ 
         background-color: #7c3aed !important; 
         border: 2px solid white !important; 
-        border-radius: 15px !important;
-    }
-    .stExpander summary, .stExpander summary * { 
+        border-radius: 12px !important;
+    }}
+    .stExpander summary, .stExpander summary * {{ 
         color: white !important; 
-        font-weight: 900 !important; 
-        font-size: 20px !important;
-        text-transform: uppercase !important;
-    }
-    .stExpander svg { fill: white !important; }
-
+        font-weight: 800 !important; 
+        font-size: 18px !important;
+        text-transform: uppercase;
+    }}
+    
     /* BOTONES DE ACCIÓN */
-    .stButton>button, .stDownloadButton>button { 
+    .stButton>button, .stDownloadButton>button {{ 
         background-color: #7c3aed !important; 
         color: white !important; 
         border-radius: 12px !important; 
-        padding: 20px !important; 
+        padding: 18px !important; 
         font-weight: 800 !important; 
         width: 100% !important; 
         border: 1px solid white !important;
-    }
+    }}
     
-    h1, h2, h3, label, p, span { color: white !important; }
+    h1, h2, h3, label, p, span {{ color: white !important; }}
     </style>
+    
+    <div class="main-header">
+        {logo_html}
+        <h1 style="display: inline; margin: 0; color: white;">DIDAPOD PRO</h1>
+    </div>
+    <p style="color: #94a3b8 !important; margin-left: 100px; margin-top: -15px;">Safe Cascade Dubbing System</p>
     """, unsafe_allow_html=True)
 
-# --- 3. LOGIN ---
+# --- 2. LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -64,24 +79,8 @@ if not st.session_state["auth"]:
                 st.rerun()
     st.stop()
 
-# --- 4. ENCABEZADO CON HTML PURO (LOGO GARANTIZADO) ---
-if logo_data:
-    st.markdown(f"""
-        <div style="display: flex; align-items: center; margin-bottom: 20px;">
-            <img src="data:image/png;base64,{logo_data}" width="100" style="margin-right: 20px; border-radius: 10px;">
-            <div>
-                <h1 style="margin:0; font-size: 40px;">DIDAPOD PRO</h1>
-                <p style="margin:0; color: #94a3b8 !important;">Powered by DidactAI-US</p>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-else:
-    st.markdown("<h1>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
-
-st.write("---")
-
-# --- 5. PROCESAMIENTO ---
-target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
+# --- 3. PROCESAMIENTO ---
+target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
 if up_file:
@@ -115,11 +114,10 @@ if up_file:
             
             st.balloons()
             
-            # --- ZONA DE RESULTADO CON BOTONES PRO ---
+            # --- RESULTADO FINAL ---
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
-            st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center;'>✅ Your Podcast is Ready</h3>", unsafe_allow_html=True)
             
-            # Botón de Escucha Forzado
             with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
                 st.audio("result.mp3")
             
@@ -131,3 +129,4 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
