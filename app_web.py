@@ -6,42 +6,52 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN Y ESTILO VISUAL ---
+# --- 1. CONFIGURACIÓN Y ESTILO BLINDADO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
-st.markdown(f"""
+st.markdown("""
     <style>
-    .stApp {{ background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }}
+    /* Fondo oscuro de la aplicación */
+    .stApp { background-color: #0f172a !important; }
     
-    /* DISEÑO DEL BOTÓN "CLICK HERE" (MODO BOTÓN MORADO) */
-    .stExpander {{ 
+    /* FORZAR LOGO */
+    [data-testid="stImage"] { 
+        border-radius: 10px;
+    }
+
+    /* EL BOTÓN DE ESCUCHA (EXPANDER) - ESTILO MORADO PRO */
+    .stExpander { 
         background-color: #7c3aed !important; 
-        border: 2px solid white !important; 
+        border: 2px solid #ffffff !important; 
         border-radius: 12px !important;
-        margin-bottom: 15px;
-    }}
-    /* Esto obliga a que el texto "CLICK HERE" sea BLANCO y GRANDE */
-    .stExpander summary span p {{ 
-        color: white !important; 
+        margin-top: 15px !important;
+    }
+    
+    /* ESTO OBLIGA AL TEXTO A SER BLANCO BRILLANTE */
+    .stExpander summary, .stExpander summary * { 
+        color: #ffffff !important; 
         font-weight: 800 !important; 
-        font-size: 20px !important;
-        text-transform: uppercase;
-    }}
-    .stExpander summary {{ color: white !important; }}
+        font-size: 19px !important;
+        text-decoration: none !important;
+    }
+    
+    /* ICONO DEL EXPANDER EN BLANCO */
+    .stExpander svg { fill: white !important; }
 
     /* BOTONES DE ACCIÓN (START Y DOWNLOAD) */
-    .stButton>button, .stDownloadButton>button {{ 
+    .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
         border-radius: 12px !important; 
         padding: 18px !important; 
         font-weight: 800 !important; 
         width: 100% !important; 
-        border: 2px solid white !important;
-    }}
+        border: 1px solid white !important;
+        text-transform: uppercase;
+    }
     
-    .main-title {{ color: white; font-size: 40px; font-weight: 800; margin: 0; }}
-    label, .stMarkdown p {{ color: white !important; }}
+    /* Forzar visibilidad de textos generales */
+    h1, h2, h3, label, p, span { color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -56,22 +66,21 @@ if not st.session_state["auth"]:
                 st.rerun()
     st.stop()
 
-# --- 3. ENCABEZADO (CON LOGO LOCAL) ---
-col_logo, col_txt = st.columns([1, 4])
-with col_logo:
-    # Verificamos si logo.png existe en tu carpeta de GitHub
+# --- 3. ENCABEZADO CON LOGO ---
+col_l, col_r = st.columns([1, 4])
+with col_l:
+    # Intento de carga del archivo local verificado en imagen
     if os.path.exists("logo.png"):
         st.image("logo.png", width=110)
     else:
         st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
-
-with col_txt:
-    st.markdown('<p class="main-title">DIDAPOD PRO</p>', unsafe_allow_html=True)
-    st.markdown('<p style="color:#94a3b8; font-size:16px; margin:0;">Enterprise Dubbing by DidactAI-US</p>', unsafe_allow_html=True)
+with col_r:
+    st.markdown("<h1 style='margin:0; color:white;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
 st.write("---")
 
-# --- 4. LÓGICA DE PROCESAMIENTO ---
+# --- 4. PROCESAMIENTO ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
@@ -82,7 +91,7 @@ if up_file:
             with st.status("🤖 Processing...", expanded=True) as status:
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
-                # Fragmentos para evitar errores de saturación
+                # Fragmentos de 40 seg para estabilidad
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 
                 final_audio = AudioSegment.empty()
@@ -91,7 +100,7 @@ if up_file:
                 voice_m = {"English": "en-US-EmmaMultilingualNeural", "Spanish": "es-ES-ElviraNeural", "French": "fr-FR-DeniseNeural"}
 
                 for i, chunk in enumerate(chunks):
-                    st.write(f"🔄 Processing segment {i+1}/{len(chunks)}...")
+                    st.write(f"🔄 Segment {i+1}/{len(chunks)}...")
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
                         try:
@@ -107,15 +116,15 @@ if up_file:
             
             st.balloons()
             
-            # --- ZONA DE RESULTADO ESTILIZADA ---
+            # --- ÁREA DE RESULTADO ---
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center; color:white;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
             
-            # AQUÍ EL BOTÓN DE ESCUCHA CON EL ESTILO QUE PEDISTE
-            with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
+            # BOTÓN DE ESCUCHA CON ESTILO FORZADO
+            with st.listen_button("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
                 st.audio("result.mp3")
             
-            st.write("") 
+            st.write("")
             
             # BOTÓN DE DESCARGA
             with open("result.mp3", "rb") as f:
@@ -125,6 +134,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
