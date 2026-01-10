@@ -2,11 +2,11 @@ import streamlit as st
 import edge_tts
 import asyncio
 import os
+import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
-import speech_recognition as sr
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. PAGE CONFIG & STYLING (English) ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 st.markdown("""
@@ -18,76 +18,89 @@ st.markdown("""
         background-color: #7c3aed !important; color: white !important; 
         border-radius: 10px; padding: 15px 30px; font-weight: bold; width: 100%; 
     }
-    label, .stMarkdown p { color: white !important; } /* Corrección de contraste */
+    label, .stMarkdown p, .stSuccess, .stInfo { color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SISTEMA DE PRIVACIDAD ---
-def login():
-    if "auth" not in st.session_state: st.session_state["auth"] = False
-    if st.session_state["auth"]: return True
+# --- 2. PRIVACY SYSTEM (English) ---
+if "auth" not in st.session_state: st.session_state["auth"] = False
 
-    st.markdown("<h2 style='color:white;'>🔐 Acceso DidactAI</h2>", unsafe_allow_html=True)
+if not st.session_state["auth"]:
+    st.markdown("<h2 style='color:white;'>🔐 DidactAI Restricted Access</h2>", unsafe_allow_html=True)
     with st.form("login"):
-        user = st.text_input("Usuario")
-        pw = st.text_input("Contraseña", type="password")
-        if st.form_submit_button("Entrar"):
-            if user == "admin" and pw == "didactai2026": # CAMBIA TU CLAVE AQUÍ
+        user = st.text_input("Username")
+        pw = st.text_input("Password", type="password")
+        if st.form_submit_button("Login"):
+            if user == "admin" and pw == "didactai2026":
                 st.session_state["auth"] = True
                 st.rerun()
-            else: st.error("Credenciales incorrectas")
-    return False
+            else: st.error("Invalid credentials")
+    st.stop()
 
-if login():
-    # --- 3. CABECERA (JERARQUÍA VISUAL) ---
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if os.path.exists("logo.png"): st.image("logo.png", width=80)
-    with col2:
-        st.markdown('<p class="main-title">DIDAPOD</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-title">Powered by DidactAI-US</p>', unsafe_allow_html=True)
+# --- 3. INTERFACE (English) ---
+col1, col2 = st.columns([1, 4])
+with col1:
+    if os.path.exists("logo.png"): st.image("logo.png", width=80)
+with col2:
+    st.markdown('<p class="main-title">DIDAPOD</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-title">Powered by DidactAI-US</p>', unsafe_allow_html=True)
 
-    # --- 4. INDICADOR DE PASOS ---
-    st.markdown("### 🗺️ Flujo de Trabajo")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.info("1. Subir")
-    c2.info("2. Idioma")
-    c3.info("3. Doblar")
-    c4.info("4. List")
+st.markdown("### 🗺️ Workflow")
+c1, c2, c3, c4 = st.columns(4)
+c1.info("1. Upload")
+c2.info("2. Language")
+c3.info("3. Dubbing")
+c4.info("4. Finish")
 
-    # --- 5. CONFIGURACIÓN DEL PROYECTO ---
-    st.markdown("---")
-    idioma = st.selectbox("Idioma de destino:", ["Inglés (EE.UU.)", "Español", "Francés"])
+st.markdown("---")
+target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
+uploaded_file = st.file_uploader("Upload your podcast (MP3 or WAV)", type=["mp3", "wav"])
+
+if uploaded_file:
+    st.audio(uploaded_file)
     
-    uploaded_file = st.file_uploader("Formatos soportados: MP3, WAV", type=["mp3", "wav"])
-
-    if uploaded_file:
-        st.success("✅ Audio listo")
-        st.audio(uploaded_file) # Previsualización (Confianza)
-
-        if st.button("🚀 INICIAR DOBLAJE IA"):
-            try:
-                with st.status("🤖 Procesando audio...", expanded=True) as status:
-                    # Guardar temporal
-                    with open("temp.mp3", "wb") as f: f.write(uploaded_file.read())
-                    
-                    st.write("🎙️ Transcribiendo y Traduciendo...")
-                    # Lógica simplificada de traducción (aquí iría tu bloque de speech_recognition)
-                    texto_original = "Texto detectado en el podcast..." 
-                    texto_traducido = GoogleTranslator(source='auto', target='en').translate(texto_original)
-                    
-                    st.write("🔊 Generando voz de IA (Emma)...")
-                    communicate = edge_tts.Communicate(texto_traducido, "en-US-EmmaMultilingualNeural")
-                    asyncio.run(communicate.save("output.mp3"))
-                    
-                    status.update(label="¡Doblaje Completado!", state="complete")
+    if st.button("🚀 START AI DUBBING"):
+        try:
+            with st.status("🤖 Processing audio...", expanded=True) as status:
+                # 1. Save and Convert
+                st.write("⏳ Preparing file...")
+                with open("temp_input.mp3", "wb") as f:
+                    f.write(uploaded_file.getbuffer())
                 
-                st.balloons()
-                with open("output.mp3", "rb") as f:
-                    st.download_button("📥 Descargar Podcast Doblado", f, "podcast_didactai.mp3")
-            
-            except Exception as e:
-                st.error(f"Hubo un detalle técnico: {e}")
+                audio = AudioSegment.from_file("temp_input.mp3")
+                audio.export("temp_wav.wav", format="wav")
 
-    # --- 6. PIE DE PÁGINA ---
-    st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US | Soluciones de IA</small></center>", unsafe_allow_html=True)
+                # 2. Transcription
+                st.write("🎙️ Transcribing original podcast...")
+                r = sr.Recognizer()
+                with sr.AudioFile("temp_wav.wav") as source:
+                    audio_data = r.record(source)
+                    text_orig = r.recognize_google(audio_data, language="es-ES") # Detects Spanish input
+
+                # 3. Translation
+                st.write("🌍 Translating content...")
+                codes = {"English": "en", "Spanish": "es", "French": "fr"}
+                text_trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text_orig)
+
+                # 4. AI Voice Generation (Using Emma for English)
+                st.write("🔊 Generating AI Voice...")
+                voice_map = {
+                    "English": "en-US-EmmaMultilingualNeural",
+                    "Spanish": "es-ES-ElviraNeural",
+                    "French": "fr-FR-DeniseNeural"
+                }
+                
+                communicate = edge_tts.Communicate(text_trans, voice_map[target_lang])
+                asyncio.run(communicate.save("output.mp3"))
+                
+                status.update(label="Dubbing Complete!", state="complete")
+            
+            st.balloons()
+            with open("output.mp3", "rb") as f:
+                st.download_button("📥 Download Dubbed Podcast", f, "didapod_result.mp3")
+        
+        except Exception as e:
+            st.error(f"Technical detail: {e}")
+
+# --- 4. FOOTER ---
+st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US | AI Enterprise Solutions</small></center>", unsafe_allow_html=True)
