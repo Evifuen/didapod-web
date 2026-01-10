@@ -2,48 +2,46 @@ import streamlit as st
 import edge_tts
 import asyncio
 import os
+import base64
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN Y ESTILO INVICTO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
-# URL DIRECTA DE TU LOGO (PostImages)
-URL_LOGO = "https://i.postimg.cc/1z07Pqqf/logo.png"
+# Función para inyectar el logo (Evita que Streamlit lo bloquee)
+def get_base64_logo(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return None
 
-st.markdown(f"""
+logo_data = get_base64_logo("logo.png")
+
+st.markdown("""
     <style>
-    .stApp {{ background-color: #0f172a !important; }}
+    .stApp { background-color: #0f172a !important; }
     
-    /* ESTILO PARA EL LOGO Y TÍTULO */
-    .header-box {{
-        display: flex;
-        align-items: center;
-        background: rgba(255, 255, 255, 0.05);
-        padding: 15px;
-        border-radius: 15px;
-        margin-bottom: 25px;
-        border: 1px solid rgba(124, 58, 237, 0.3);
-    }}
-
-    /* BOTÓN "CLICK HERE" MORADO CON TEXTO BLANCO */
-    .stExpander {{ 
+    /* BOTÓN "CLICK HERE" FORZADO A SER MORADO Y BLANCO */
+    .stExpander { 
         background-color: #7c3aed !important; 
         border: 2px solid white !important; 
         border-radius: 12px !important;
-    }}
-    /* FORZAR VISIBILIDAD DEL TEXTO */
-    .stExpander summary, .stExpander summary * {{ 
-        color: white !important; 
-        font-weight: 800 !important; 
-        font-size: 20px !important;
-        text-transform: uppercase;
-    }}
-    .stExpander svg {{ fill: white !important; }}
+        margin-top: 15px !important;
+    }
     
-    /* BOTONES DE ACCIÓN */
-    .stButton>button, .stDownloadButton>button {{ 
+    /* ESTA REGLA PINTA EL TEXTO DE BLANCO SÍ O SÍ */
+    .stExpander summary, .stExpander summary * { 
+        color: #ffffff !important; 
+        font-weight: 800 !important; 
+        font-size: 19px !important;
+        text-transform: uppercase !important;
+    }
+    .stExpander svg { fill: white !important; }
+
+    /* BOTONES DE ACCIÓN (START Y DOWNLOAD) */
+    .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
         border-radius: 12px !important; 
@@ -51,9 +49,9 @@ st.markdown(f"""
         font-weight: 800 !important; 
         width: 100% !important; 
         border: 1px solid white !important;
-    }}
+    }
     
-    h1, h2, h3, label, p, span {{ color: white !important; }}
+    h1, h2, h3, label, p, span { color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -68,16 +66,19 @@ if not st.session_state["auth"]:
                 st.rerun()
     st.stop()
 
-# --- 3. ENCABEZADO (CON URL DIRECTA) ---
-st.markdown(f"""
-    <div class="header-box">
-        <img src="{URL_LOGO}" width="90" style="margin-right: 20px; border-radius: 10px;">
-        <div>
-            <h1 style="margin: 0; font-size: 35px;">DIDAPOD PRO</h1>
-            <p style="margin: 0; color: #94a3b8 !important;">Safe Cascade Dubbing by DidactAI-US</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# --- 3. ENCABEZADO CON LOGO GARANTIZADO ---
+col_l, col_r = st.columns([1, 4])
+with col_l:
+    if logo_data:
+        # Inyectamos el logo como código directo para saltar bloqueos de Streamlit
+        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
+    else:
+        st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
+with col_r:
+    st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
+
+st.write("---")
 
 # --- 4. PROCESAMIENTO ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French"])
@@ -90,6 +91,7 @@ if up_file:
             with st.status("🤖 Processing...", expanded=True) as status:
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
+                # Fragmentos de 40 seg para estabilidad
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 
                 final_audio = AudioSegment.empty()
@@ -114,21 +116,23 @@ if up_file:
             
             st.balloons()
             
-            # --- RESULTADO FINAL ---
-        st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed; color: white;'>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
-
-with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
-    st.audio("result.mp3")
-
-st.write("")
-with open("result.mp3", "rb") as f:
-    st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
-st.markdown("</div>", unsafe_allow_html=True)
+            # --- ZONA DE RESULTADO ---
+            st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
+            
+            # EL BOTÓN DE ESCUCHA CON ESTILO IGUAL AL DE DESCARGA
+            with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
+                st.audio("result.mp3")
+            
+            st.write("")
+            with open("result.mp3", "rb") as f:
+                st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
