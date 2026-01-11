@@ -13,7 +13,8 @@ st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout=
 def get_base64_logo(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+            data = f.read()
+            return base64.b64encode(data).decode()
     return None
 
 logo_data = get_base64_logo("logo.png")
@@ -21,6 +22,8 @@ logo_data = get_base64_logo("logo.png")
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
+    
+    /* DISEÑO DEL EXPANDER (BOTÓN ESCUCHAR) */
     .stExpander { 
         background-color: #7c3aed !important; 
         border: 2px solid white !important; 
@@ -32,6 +35,8 @@ st.markdown("""
         font-size: 19px !important;
         text-transform: uppercase !important;
     }
+    
+    /* BOTONES DE ACCIÓN */
     .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
@@ -41,9 +46,10 @@ st.markdown("""
         width: 100% !important; 
         border: 1px solid white !important;
     }
+    
     h1, h2, h3, label, p, span { color: white !important; }
     
-    /* Estilo para que el spinner sea más visible */
+    /* Estilo del Spinner (las pelotitas) */
     .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -80,8 +86,8 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            # Reemplazamos los mensajes de texto por un Spinner (las pelotitas)
-            with st.spinner("🤖 AI is dubbing your podcast... Please wait."):
+            # Spinner animado (pelotitas) en lugar de mensajes de texto
+            with st.spinner("🤖 AI Dubbing in progress... please wait"):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
@@ -110,9 +116,9 @@ if up_file:
                 
                 final_audio.export("result.mp3", format="mp3")
             
-            # Una vez que termina el spinner, mostramos el éxito
             st.balloons()
             
+            # --- ZONA DE RESULTADO ---
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
             
