@@ -7,51 +7,54 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
+# --- 1. CONFIGURACIÓN Y ESTILO ---
+st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+            data = f.read()
+            return base64.b64encode(data).decode()
     return None
 
 logo_data = get_base64_logo("logo.png")
 
-# --- 2. DISEÑO DE ALTA VISIBILIDAD ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
     
-    /* BOTÓN ESCUCHAR: TEXTO BLANCO BRILLANTE */
+    /* DISEÑO DEL EXPANDER (BOTÓN ESCUCHAR) */
     .stExpander { 
         background-color: #7c3aed !important; 
-        border: 2px solid #ffffff !important; 
+        border: 2px solid white !important; 
         border-radius: 12px !important;
     }
-    .stExpander summary p {
-        color: #ffffff !important;
-        font-weight: 900 !important;
-        font-size: 1.2rem !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        margin: 0 !important;
+    .stExpander summary, .stExpander summary * { 
+        color: #ffffff !important; 
+        font-weight: 800 !important; 
+        font-size: 19px !important;
+        text-transform: uppercase !important;
     }
-    .stExpander svg { fill: #ffffff !important; }
-
+    
     /* BOTONES DE ACCIÓN */
     .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
         border-radius: 12px !important; 
-        font-weight: 800 !important;
+        padding: 18px !important; 
+        font-weight: 800 !important; 
+        width: 100% !important; 
         border: 1px solid white !important;
     }
     
     h1, h2, h3, label, p, span { color: white !important; }
+    
+    /* Estilo del Spinner (las pelotitas) */
+    .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. LOGIN ---
+# --- 2. LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -62,35 +65,43 @@ if not st.session_state["auth"]:
                 st.rerun()
     st.stop()
 
-# --- 4. ENCABEZADO ---
+# --- 3. ENCABEZADO ---
 col_l, col_r = st.columns([1, 4])
 with col_l:
     if logo_data:
-        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="100" style="border-radius:10px;">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
+    else:
+        st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
 with col_r:
     st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>AI Powered Cascade Dubbing</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
 st.write("---")
 
-# --- 5. LÓGICA DE PROCESAMIENTO ---
-target_lang = st.selectbox("Language:", ["English", "Spanish", "French", "Portuguese"])
+# --- 4. PROCESAMIENTO ---
+target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
 if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            # PELOTITAS DE CARGA (SPINNER)
-            with st.spinner("🤖 Processing your podcast..."):
+            # Spinner animado (pelotitas) en lugar de mensajes de texto
+            with st.spinner("🤖 AI Dubbing in progress... please wait"):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 
                 final_audio = AudioSegment.empty()
                 r = sr.Recognizer()
+                
                 codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                voice_m = {"English": "en-US-EmmaMultilingualNeural", "Spanish": "es-ES-ElviraNeural", "French": "fr-FR-DeniseNeural", "Portuguese": "pt-BR-FranciscaNeural"}
+                voice_m = {
+                    "English": "en-US-EmmaMultilingualNeural", 
+                    "Spanish": "es-ES-ElviraNeural", 
+                    "French": "fr-FR-DeniseNeural",
+                    "Portuguese": "pt-BR-FranciscaNeural"
+                }
 
                 for i, chunk in enumerate(chunks):
                     chunk.export("c.wav", format="wav")
@@ -106,19 +117,21 @@ if up_file:
                 final_audio.export("result.mp3", format="mp3")
             
             st.balloons()
+            
+            # --- ZONA DE RESULTADO ---
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
+            
             with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
                 st.audio("result.mp3")
+            
             st.write("")
             with open("result.mp3", "rb") as f:
                 st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e: 
+            st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
-
-
 
