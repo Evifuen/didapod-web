@@ -7,64 +7,47 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
     if os.path.exists(path):
         with open(path, "rb") as f:
-            data = f.read()
-            return base64.b64encode(data).decode()
+            return base64.b64encode(f.read()).decode()
     return None
 
 logo_data = get_base64_logo("logo.png")
 
+# --- 2. ESTILO VISUAL (CORRECCIÓN DE TEXTO INVISIBLE) ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
     
-    /* DISEÑO DEL EXPANDER (BOTÓN ESCUCHAR) */
+    /* BOTÓN ESCUCHAR: TEXTO BLANCO GARANTIZADO */
     .stExpander { 
         background-color: #7c3aed !important; 
         border: 2px solid white !important; 
         border-radius: 12px !important;
     }
-    .stExpander summary, .stExpander summary * { 
-        color: #ffffff !important; 
-        font-weight: 800 !important; 
-        font-size: 19px !important;
-        text-transform: uppercase !important;
+    .stExpander summary p {
+        color: white !important;
+        font-weight: 800 !important;
+        font-size: 1.1rem !important;
+        margin: 0 !important;
     }
-    
+    .stExpander svg { fill: white !important; }
+
     /* BOTONES DE ACCIÓN */
     .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
         border-radius: 12px !important; 
-        padding: 18px !important; 
-        font-weight: 800 !important; 
-        width: 100% !important; 
         border: 1px solid white !important;
     }
     
     h1, h2, h3, label, p, span { color: white !important; }
-    
-    /* Estilo del Spinner (las pelotitas) */
-    .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
-
-# --- 2. LOGIN ---
-if "auth" not in st.session_state: st.session_state["auth"] = False
-if not st.session_state["auth"]:
-    with st.form("login"):
-        u, p = st.text_input("User"), st.text_input("Pass", type="password")
-        if st.form_submit_button("Login"):
-            if u == "admin" and p == "didactai2026":
-                st.session_state["auth"] = True
-                st.rerun()
-    st.stop()
-
 # --- 3. ENCABEZADO ---
 col_l, col_r = st.columns([1, 4])
 with col_l:
@@ -134,3 +117,4 @@ if up_file:
             st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
