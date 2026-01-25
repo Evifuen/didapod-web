@@ -1,113 +1,68 @@
 import streamlit as st
-import azure.cognitiveservices.speech
-import asyncio
+import azure.cognitiveservices.speech as speechsdk
 import os
 import base64
-import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN DE SEGURIDAD (No expone tu llave) ---
+# Estos nombres deben coincidir con lo que escribiste en Streamlit Secrets
+AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
+AZURE_REGION = st.secrets["AZURE_SPEECH_REGION"]
+
+# Configuración de la página
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
-def get_base64_logo(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
+# --- 2. FUNCIÓN MAESTRA DE AZURE ---
+def generar_audio_azure(texto, archivo_salida):
+    """
+    Conecta con el recurso 'didapod' y genera el audio profesional.
+    El uso de .get() evita que el archivo pese solo 261 bytes.
+    """
+    # Configuración del servicio
+    speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
+    
+    # Seleccionamos la voz neural (profesional)
+    speech_config.speech_synthesis_voice_name = "es-ES-ElviraNeural" 
+    
+    # Configuramos la salida hacia el archivo físico
+    audio_config = speechsdk.audio.AudioOutputConfig(filename=archivo_salida)
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
-logo_data = get_base64_logo("logo.png")
+    # Esta línea hace que el contador de Azure suba de 0 a 1
+    resultado = synthesizer.speak_text_async(texto).get()
+    
+    return resultado
 
-# --- 2. DISEÑO PROFESIONAL ---
-st.markdown("""
-    <style>
-    .stApp { background-color: #0f172a !important; }
-    .stExpander { 
-        background-color: #7c3aed !important; 
-        border: 2px solid white !important; 
-        border-radius: 12px !important;
-    }
-    .stExpander summary p { 
-        color: white !important; 
-        font-weight: 800 !important; 
-        font-size: 1.1rem !important;
-    }
-    .stButton>button, .stDownloadButton>button { 
-        background-color: #7c3aed !important; 
-        color: white !important; 
-        border-radius: 12px !important; 
-        padding: 18px !important; 
-        font-weight: 800 !important; 
-        width: 100% !important; 
-        border: 1px solid white !important;
-    }
-    h1, h2, h3, label, p, span { color: white !important; }
-    .stSpinner > div { border-top-color: #7c3aed !important; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 3. INTERFAZ DE USUARIO ---
+st.title("🎙️ Doblaje Profesional con Azure AI")
+st.write("Escribe el texto que deseas convertir en voz profesional.")
 
-# --- 3. LOGIN ---
-if "auth" not in st.session_state: st.session_state["auth"] = False
-if not st.session_state["auth"]:
-    with st.form("login"):
-        u, p = st.text_input("User"), st.text_input("Pass", type="password")
-        if st.form_submit_button("Login"):
-            if u == "admin" and p == "didactai2026":
-                st.session_state["auth"] = True
-                st.rerun()
-    st.stop()
+texto_usuario = st.text_area("Texto a doblar:", placeholder="Hola, esto es una prueba de voz profesional...")
 
-# --- 4. ENCABEZADO ---
-col_l, col_r = st.columns([1, 4])
-with col_l:
-    if logo_data:
-        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="100" style="border-radius:10px;">', unsafe_allow_html=True)
-with col_r:
-    st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>AI Powered Cascade Dubbing</p>", unsafe_allow_html=True)
-
-st.write("---")
-
-# --- 5. PROCESAMIENTO ---
-target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
-up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
-
-if up_file:
-    st.audio(up_file)
-    if st.button("🚀 START AI DUBBING"):
-        try:
-            with st.spinner("🤖 AI Dubbing in progress... please wait"):
-                with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
-                audio = AudioSegment.from_file("temp.mp3")
-                chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
-                final_audio = AudioSegment.empty()
-                r = sr.Recognizer()
-                codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                voice_m = {"English": "en-US-EmmaMultilingualNeural", "Spanish": "es-ES-ElviraNeural", "French": "fr-FR-DeniseNeural", "Portuguese": "pt-BR-FranciscaNeural"}
-
-                for i, chunk in enumerate(chunks):
-                    chunk.export("c.wav", format="wav")
-                    with sr.AudioFile("c.wav") as src:
-                        try:
-                            text = r.recognize_google(r.record(src), language="es-ES")
-                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
-                            asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(f"v{i}.mp3"))
-                            final_audio += AudioSegment.from_file(f"v{i}.mp3")
-                            os.remove(f"v{i}.mp3")
-                        except: continue
-                final_audio.export("result.mp3", format="mp3")
+if st.button("Generar Doblaje"):
+    if texto_usuario:
+        with st.spinner("Procesando con Azure AI..."):
+            nombre_archivo = "doblaje_final.mp3"
             
-            st.balloons()
-            st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
-            st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
-            with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
-                st.audio("result.mp3")
-            st.write("")
-            with open("result.mp3", "rb") as f:
-                st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
-            st.markdown("</div>", unsafe_allow_html=True)
+            # Llamada a la función
+            resultado = generar_audio_azure(texto_usuario, nombre_archivo)
+            
+            if resultado.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                st.success("¡Audio generado con éxito!")
+                
+                # Reproductor de audio
+                with open(nombre_archivo, "rb") as audio_file:
+                    st.audio(audio_file.read(), format="audio/mp3")
+                
+                # Botón de descarga
+                with open(nombre_archivo, "rb") as f:
+                    st.download_button("Descargar Archivo MP3", f, file_name=nombre_archivo)
+                
+                st.info("Revisa tu portal de Azure en 5 minutos; el contador debería marcar '1'.")
+            else:
+                st.error("Error en la síntesis. Revisa los Secrets y la región 'eastus'.")
+    else:
+        st.warning("Por favor, introduce algún texto.")
 
-        except Exception as e: st.error(f"Error: {e}")
-
-st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
