@@ -3,4 +3,5 @@ edge-tts
 pydub
 SpeechRecognition
 deep-translator
+azure-cognitiveservices-speech
 
