@@ -1,3 +1,4 @@
+import azure.cognitiveservices.speech as speechsdk
 import streamlit as st
 import azure.cognitiveservices.speech
 import asyncio
@@ -133,6 +134,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
