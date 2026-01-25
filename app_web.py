@@ -90,7 +90,7 @@ if up_file:
                 for i, chunk in enumerate(chunks):
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
-                    try:
+                        try:
                             # 1. Transcripción y Traducción
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
@@ -133,6 +133,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
