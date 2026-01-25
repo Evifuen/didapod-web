@@ -1,5 +1,5 @@
 import streamlit as st
-import edge_tts
+import azure.cognitiveservices.speech
 import asyncio
 import os
 import base64
@@ -110,3 +110,4 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
