@@ -90,10 +90,13 @@ if up_file:
                 for i, chunk in enumerate(chunks):
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
-                        try:
+                    try:
+                            # 1. Transcripción y Traducción
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
-                           peech_config = speechsdk.SpeechConfig(
+                            
+                            # 2. Configuración de Azure (Alineado con el texto de arriba)
+                            speech_config = speechsdk.SpeechConfig(
                                 subscription=st.secrets["AZURE_SPEECH_KEY"], 
                                 region=st.secrets["AZURE_SPEECH_REGION"]
                             )
@@ -104,17 +107,16 @@ if up_file:
                             audio_output = speechsdk.audio.AudioOutputConfig(filename=nombre_archivo)
                             synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_output)
                             
-                            # El .get() es VITAL: detiene el código hasta que el audio es REAL
-                            # Esto hará que el contador suba de 2 a 3, 4, 5...
+                            # El .get() asegura que el archivo no pese 261 bytes
                             synthesizer.speak_text_async(trans).get() 
                             
-                            # 4. Unión del audio al podcast final
+                            # 4. Unión del audio
                             final_audio += AudioSegment.from_file(nombre_archivo)
                             os.remove(nombre_archivo)
                             
                         except Exception as e:
                             st.write(f"Error en fragmento {i}: {e}")
-                            continue
+                            continue 
                    
                 final_audio.export("result.mp3", format="mp3")
             
@@ -131,5 +133,6 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
