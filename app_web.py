@@ -93,10 +93,29 @@ if up_file:
                         try:
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
-                            asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(f"v{i}.mp3"))
-                            final_audio += AudioSegment.from_file(f"v{i}.mp3")
-                            os.remove(f"v{i}.mp3")
-                        except: continue
+                           peech_config = speechsdk.SpeechConfig(
+                                subscription=st.secrets["AZURE_SPEECH_KEY"], 
+                                region=st.secrets["AZURE_SPEECH_REGION"]
+                            )
+                            speech_config.speech_synthesis_voice_name = voice_m[target_lang]
+                            
+                            # 3. Generación del audio profesional
+                            nombre_archivo = f"v{i}.mp3"
+                            audio_output = speechsdk.audio.AudioOutputConfig(filename=nombre_archivo)
+                            synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_output)
+                            
+                            # El .get() es VITAL: detiene el código hasta que el audio es REAL
+                            # Esto hará que el contador suba de 2 a 3, 4, 5...
+                            synthesizer.speak_text_async(trans).get() 
+                            
+                            # 4. Unión del audio al podcast final
+                            final_audio += AudioSegment.from_file(nombre_archivo)
+                            os.remove(nombre_archivo)
+                            
+                        except Exception as e:
+                            st.write(f"Error en fragmento {i}: {e}")
+                            continue
+                   
                 final_audio.export("result.mp3", format="mp3")
             
             st.balloons()
@@ -112,4 +131,5 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
