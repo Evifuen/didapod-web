@@ -1,68 +1,63 @@
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
 import os
-import base64
 from deep_translator import GoogleTranslator
+import speech_recognition as sr
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN DE SEGURIDAD (No expone tu llave) ---
-# Estos nombres deben coincidir con lo que escribiste en Streamlit Secrets
+# --- 1. CONFIGURACIÓN SEGURA ---
 AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
 AZURE_REGION = st.secrets["AZURE_SPEECH_REGION"]
 
-# Configuración de la página
-st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
+st.set_page_config(page_title="DIDAPOD PRO - Elvira Edition", page_icon="🎙️")
 
-# --- 2. FUNCIÓN MAESTRA DE AZURE ---
-def generar_audio_azure(texto, archivo_salida):
-    """
-    Conecta con el recurso 'didapod' y genera el audio profesional.
-    El uso de .get() evita que el archivo pese solo 261 bytes.
-    """
-    # Configuración del servicio
+# --- 2. FUNCIÓN DE DOBLAJE CON ELVIRA ---
+def doblaje_elvira(texto_traducido, archivo_salida):
     speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
-    
-    # Seleccionamos la voz neural (profesional)
+    # Aquí configuramos a Elvira específicamente
     speech_config.speech_synthesis_voice_name = "es-ES-ElviraNeural" 
     
-    # Configuramos la salida hacia el archivo físico
     audio_config = speechsdk.audio.AudioOutputConfig(filename=archivo_salida)
     synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
-    # Esta línea hace que el contador de Azure suba de 0 a 1
-    resultado = synthesizer.speak_text_async(texto).get()
-    
+    # El .get() asegura que el audio se grabe completo
+    resultado = synthesizer.speak_text_async(texto_traducido).get()
     return resultado
 
-# --- 3. INTERFAZ DE USUARIO ---
-st.title("🎙️ Doblaje Profesional con Azure AI")
-st.write("Escribe el texto que deseas convertir en voz profesional.")
+# --- 3. INTERFAZ DEL PODCAST ---
+st.title("🎙️ Traductor de Podcast (Voz: Elvira)")
+archivo_podcast = st.file_uploader("Sube tu podcast original", type=["mp3", "wav", "m4a"])
 
-texto_usuario = st.text_area("Texto a doblar:", placeholder="Hola, esto es una prueba de voz profesional...")
-
-if st.button("Generar Doblaje"):
-    if texto_usuario:
-        with st.spinner("Procesando con Azure AI..."):
-            nombre_archivo = "doblaje_final.mp3"
+if archivo_podcast:
+    st.audio(archivo_podcast, format="audio/mp3")
+    
+    if st.button("Traducir Podcast con Elvira"):
+        with st.spinner("Escuchando, traduciendo y doblando..."):
+            # Lógica de transcripción (Speech-to-Text)
+            # 1. Guardar archivo temporal
+            with open("temp.mp3", "wb") as f:
+                f.write(archivo_podcast.getbuffer())
             
-            # Llamada a la función
-            resultado = generar_audio_azure(texto_usuario, nombre_archivo)
+            # (Aquí va tu bloque de speech_recognition para obtener el 'texto_original')
+            texto_original = "Hola, bienvenidos a mi podcast." # Ejemplo
             
-            if resultado.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                st.success("¡Audio generado con éxito!")
+            # 2. Traducción
+            texto_espanol = GoogleTranslator(source='auto', target='es').translate(texto_original)
+            
+            # 3. Generación de Audio con Azure y Elvira
+            nombre_final = "podcast_final_elvira.mp3"
+            res = doblaje_elvira(texto_espanol, nombre_final)
+            
+            if res.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                st.success("¡Doblaje listo! Escucha a Elvira:")
+                st.audio(nombre_final)
                 
-                # Reproductor de audio
-                with open(nombre_archivo, "rb") as audio_file:
-                    st.audio(audio_file.read(), format="audio/mp3")
+                with open(nombre_final, "rb") as f:
+                    st.download_button("Descargar Podcast Traducido", f, file_name=nombre_final)
                 
-                # Botón de descarga
-                with open(nombre_archivo, "rb") as f:
-                    st.download_button("Descargar Archivo MP3", f, file_name=nombre_archivo)
-                
-                st.info("Revisa tu portal de Azure en 5 minutos; el contador debería marcar '1'.")
+                st.info("¡Tu contador de Azure debería subir pronto!")
             else:
-                st.error("Error en la síntesis. Revisa los Secrets y la región 'eastus'.")
-    else:
-        st.warning("Por favor, introduce algún texto.")
+                st.error("Hubo un problema con la voz de Elvira.")
+   
 
 
