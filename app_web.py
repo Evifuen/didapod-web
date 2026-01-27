@@ -19,7 +19,7 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_data = get_base64_logo("logo.png")
+logo_data = get_base64_logo("logo1.png")
 
 # --- 2. DISEÑO PROFESIONAL ---
 st.markdown("""
@@ -134,6 +134,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
