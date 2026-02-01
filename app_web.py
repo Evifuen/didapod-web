@@ -31,7 +31,7 @@ st.markdown("""
     /* LOGIN BUTTON IN BLACK */
     .stButton>button { 
         background-color: #000000 !important; 
-        color: white !important; 
+        color: black !important; 
         border-radius: 12px !important; 
         font-weight: 800 !important; 
         width: 100% !important; 
@@ -168,3 +168,4 @@ with st.expander("🛠️ Admin Panel (Internal use only)"):
             st.warning("No clients registered yet or database connection failed.")
     elif admin_key:
         st.error("Incorrect Master Key")
+
