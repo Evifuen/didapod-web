@@ -39,7 +39,7 @@ if "auth" not in st.session_state:
 
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 📝 Acceso Clientes")
+        st.markdown("### 📝 DIDAPOD PRO")
         email_cliente = st.text_input("📧 Tu Email para registro")
         
         # Relleno automático de credenciales
@@ -155,6 +155,7 @@ with st.expander("🛠️ Admin Panel (Solo uso interno)"):
             st.warning("Aún no se ha registrado ningún cliente.")
     elif admin_key:
         st.error("Master Key incorrecta")
+
 
 
 
