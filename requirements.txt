@@ -3,5 +3,8 @@ pydub
 SpeechRecognition
 deep-translator
 azure-cognitiveservices-speech
+streamlit-gsheets
+pandas
+requests
 
 
