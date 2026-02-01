@@ -8,11 +8,11 @@ import speech_recognition as sr
 import os
 import base64
 
-# --- 0. CREDENCIALES AUTOMÁTICAS ---
+# --- 0. AUTOMATIC CREDENTIALS ---
 AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
 AZURE_REGION = st.secrets["AZURE_SPEECH_REGION"]
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -23,7 +23,7 @@ def get_base64_logo(path):
 
 logo_data = get_base64_logo("logo2.png.png")
 
-# --- 2. DISEÑO PROFESIONAL ---
+# --- 2. PROFESSIONAL DESIGN ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
@@ -33,51 +33,52 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-# --- 3. LOGIN & REGISTRO PERMANENTE ---
+# --- 3. LOGIN & PERMANENT REGISTRATION ---
 if "auth" not in st.session_state: 
     st.session_state["auth"] = False
 
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 📝 DIDAPOD PRO")
-        email_cliente = st.text_input("📧 Tu Email para registro")
+        st.markdown("### 📝 DIDAPOD PRO ACCESS")
+        email_cliente = st.text_input("📧 Your Email for registration")
         
-        # Relleno automático de credenciales
-        u = st.text_input("User", value="admin")
-        p = st.text_input("Pass", type="password", value="didactai2026")
+        # Automatic credential fill
+        u = st.text_input("Username", value="admin")
+        p = st.text_input("Password", type="password", value="didactai2026")
         
-        if st.form_submit_button("Entrar a DIDAPOD"):
+        if st.form_submit_button("Enter DIDAPOD"):
             if email_cliente and u == "admin" and p == "didactai2026":
                 try:
-                    # Conexión permanente a Google Sheets
+                    # Permanent connection to Google Sheets
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     
-                    # Intentar leer datos; si falla (hoja vacía), crear estructura
+                    # Try to read data; if it fails (empty sheet), create structure
                     try:
                         df_existente = conn.read()
                     except:
-                        df_existente = pd.DataFrame(columns=["Email", "Fecha"])
+                        df_existente = pd.DataFrame(columns=["Email", "Date"])
                     
-                    # Añadir el nuevo cliente
-                    nuevo_registro = pd.DataFrame([{"Email": email_cliente, "Fecha": str(pd.Timestamp.now())}])
+                    # Add new client
+                    nuevo_registro = pd.DataFrame([{"Email": email_cliente, "Date": str(pd.Timestamp.now())}])
                     df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
                     
-                    # Guardar en la nube (Google Sheets)
+                    # Save to cloud (Google Sheets)
                     conn.update(data=df_final)
                     
                     st.session_state["auth"] = True
-                    st.session_state["user_email"] = email_cliente # Guardamos el email para saludarlo
+                    st.session_state["user_email"] = email_cliente # Store email for greeting
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error de conexión con la base de datos: {e}")
+                    st.error(f"Database connection error: {e}")
             else:
-                st.error("Por favor, introduce un email y las credenciales correctas.")
-    st.stop() # Esto bloquea el resto de la app hasta que se logueen
-# --- 4. ENCABEZADO ---
+                st.error("Please enter a valid email and the correct credentials.")
+    st.stop() # Blocks the rest of the app until login
+
+# --- 4. HEADER ---
 st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
 st.write("---")
 
-# --- 5. PROCESAMIENTO ---
+# --- 5. PROCESSING ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
@@ -99,11 +100,11 @@ if up_file:
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
                         try:
-                            # Traducción
+                            # Transcription & Translation
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
                             
-                            # MOTOR AZURE (Aquí es donde ocurre la magia)
+                            # AZURE ENGINE (The magic happens here)
                             speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
                             speech_config.speech_synthesis_voice_name = voice_m[target_lang]
                             
@@ -111,13 +112,13 @@ if up_file:
                             audio_out = speechsdk.audio.AudioOutputConfig(filename=nombre_v)
                             syn = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_out)
                             
-                            # El .get() es lo que hace que el contador de Azure suba
+                            # Speak text and wait for result
                             syn.speak_text_async(trans).get() 
                             
                             final_audio += AudioSegment.from_file(nombre_v)
                             os.remove(nombre_v)
                         except Exception as e:
-                            st.write(f"Fragmento {i} saltado: {e}")
+                            st.write(f"Fragment {i} skipped: {e}")
                             continue
                 
                 final_audio.export("result.mp3", format="mp3")
@@ -126,36 +127,37 @@ if up_file:
                 with open("result.mp3", "rb") as f:
                     st.download_button("📥 DOWNLOAD FINAL PODCAST", f, "didapod_pro.mp3")
 
-        except Exception as e: st.error(f"Error crítico: {e}")
+        except Exception as e: st.error(f"Critical error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-# --- 6. PANEL DE ADMINISTRADOR SECRETO ---
-st.write("---")
-with st.expander("🛠️ Admin Panel (Solo uso interno)"):
-    # Creamos una contraseña extra para ver los emails
-    admin_key = st.text_input("Introduce la Master Key para ver clientes:", type="password")
-    
-    if admin_key == "didactai2026": # Puedes cambiar esta clave
-        if os.path.exists("clientes.txt"):
-            with open("clientes.txt", "r") as f:
-                lista_emails = f.readlines()
-            
-            st.write("### 👥 Lista de Clientes Registrados:")
-            for email in set(lista_emails): # Usamos set() para no repetir emails
-                st.text(email.strip())
-            
-            # Botón para descargar la lista completa
-            st.download_button(
-                label="📥 Descargar Base de Datos de Emails",
-                data="".join(lista_emails),
-                file_name="base_datos_clientes.txt",
-                mime="text/plain"
-            )
-        else:
-            st.warning("Aún no se ha registrado ningún cliente.")
-    elif admin_key:
-        st.error("Master Key incorrecta")
 
+# --- 6. SECRET ADMIN PANEL ---
+st.write("---")
+with st.expander("🛠️ Admin Panel (Internal use only)"):
+    # Extra password to view email list
+    admin_key = st.text_input("Enter Master Key to view clients:", type="password")
+    
+    if admin_key == "didactai2026": 
+        # Check database connection or local file
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df_clientes = conn.read()
+            
+            st.write("### 👥 Registered Client List:")
+            st.dataframe(df_clientes) # Displaying as a professional table
+            
+            # Download full database button
+            csv = df_clientes.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Email Database (CSV)",
+                data=csv,
+                file_name="client_database.csv",
+                mime="text/csv"
+            )
+        except:
+            st.warning("No clients registered yet or database connection failed.")
+    elif admin_key:
+        st.error("Incorrect Master Key")
 
 
 
