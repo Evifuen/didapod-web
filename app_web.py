@@ -1,3 +1,5 @@
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
 from deep_translator import GoogleTranslator
@@ -153,6 +155,7 @@ with st.expander("🛠️ Admin Panel (Solo uso interno)"):
             st.warning("Aún no se ha registrado ningún cliente.")
     elif admin_key:
         st.error("Master Key incorrecta")
+
 
 
 
