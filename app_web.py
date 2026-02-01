@@ -108,6 +108,32 @@ if up_file:
         except Exception as e: st.error(f"Error crítico: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+# --- 6. PANEL DE ADMINISTRADOR SECRETO ---
+st.write("---")
+with st.expander("🛠️ Admin Panel (Solo uso interno)"):
+    # Creamos una contraseña extra para ver los emails
+    admin_key = st.text_input("Introduce la Master Key para ver clientes:", type="password")
+    
+    if admin_key == "didactai2026": # Puedes cambiar esta clave
+        if os.path.exists("clientes.txt"):
+            with open("clientes.txt", "r") as f:
+                lista_emails = f.readlines()
+            
+            st.write("### 👥 Lista de Clientes Registrados:")
+            for email in set(lista_emails): # Usamos set() para no repetir emails
+                st.text(email.strip())
+            
+            # Botón para descargar la lista completa
+            st.download_button(
+                label="📥 Descargar Base de Datos de Emails",
+                data="".join(lista_emails),
+                file_name="base_datos_clientes.txt",
+                mime="text/plain"
+            )
+        else:
+            st.warning("Aún no se ha registrado ningún cliente.")
+    elif admin_key:
+        st.error("Master Key incorrecta")
 
 
 
