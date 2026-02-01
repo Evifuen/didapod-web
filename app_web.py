@@ -22,7 +22,7 @@ def get_base64_logo(path):
     return None
 
 # Carga del logo (Asegúrate de que el archivo se llame logo2.png en GitHub)
-logo_data = get_base64_logo("logo2.png")
+logo_data = get_base64_logo("logo2.png.png")
 
 # --- 2. PROFESSIONAL DESIGN (CORREGIDO) ---
 st.markdown(f"""
@@ -48,7 +48,7 @@ st.markdown(f"""
     }}
 
     /* Estilos para textos */
-    h1, h2, h3, label, p, span {{ color: white !important; }}
+    h1, h2, h3, label, p, span {{ color: blue !important; }}
     
     .logo-container {{
         text-align: center;
@@ -100,3 +100,4 @@ st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_al
 st.write("---")
 
 # Aquí continúa el resto de tu lógica de traducción y Azure...
+
