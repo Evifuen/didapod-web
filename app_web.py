@@ -50,14 +50,30 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. LOGIN ---
+# --- 3. LOGIN & REGISTRO DE CLIENTES ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
+
 if not st.session_state["auth"]:
     with st.form("login"):
-        u, p = st.text_input("User"), st.text_input("Pass", type="password")
-        if st.form_submit_button("Login"):
-            if u == "admin" and p == "didactai2026":
+        st.markdown("### 📝 Register & Access")
+        # Capturamos el email del cliente
+        email_cliente = st.text_input("📧 Your Email")
+        
+        # Relleno automático para facilitar la entrada del admin
+        u = st.text_input("User", value="admin") 
+        p = st.text_input("Pass", type="password", value="didactai2026")
+        
+        if st.form_submit_button("Access DIDAPOD"):
+            if email_cliente and u == "admin" and p == "didactai2026":
+                # GUARDAR EMAIL: Lo guardamos en un archivo de texto
+                with open("clientes.txt", "a") as f:
+                    f.write(f"{email_cliente}\n")
+                
                 st.session_state["auth"] = True
+                st.session_state["user_email"] = email_cliente
                 st.rerun()
+            else:
+                st.error("Please provide a valid email and credentials.")
     st.stop()
 
 # --- 4. ENCABEZADO ---
@@ -134,6 +150,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
