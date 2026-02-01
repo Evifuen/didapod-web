@@ -27,7 +27,22 @@ logo_data = get_base64_logo("logo2.png.png")
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
-    .stButton>button { background-color: #7c3aed !important; color: white !important; border-radius: 12px !important; font-weight: 800 !important; width: 100% !important; border: 1px solid white !important; }
+    
+    /* LOGIN BUTTON IN BLACK */
+    .stButton>button { 
+        background-color: #000000 !important; 
+        color: white !important; 
+        border-radius: 12px !important; 
+        font-weight: 800 !important; 
+        width: 100% !important; 
+        border: 2px solid #334155 !important;
+    }
+    
+    .stButton>button:hover {
+        background-color: #1e293b !important;
+        border-color: #7c3aed !important;
+    }
+
     h1, h2, h3, label, p, span { color: white !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -104,7 +119,7 @@ if up_file:
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
                             
-                            # AZURE ENGINE (The magic happens here)
+                            # AZURE ENGINE
                             speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
                             speech_config.speech_synthesis_voice_name = voice_m[target_lang]
                             
@@ -112,7 +127,6 @@ if up_file:
                             audio_out = speechsdk.audio.AudioOutputConfig(filename=nombre_v)
                             syn = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_out)
                             
-                            # Speak text and wait for result
                             syn.speak_text_async(trans).get() 
                             
                             final_audio += AudioSegment.from_file(nombre_v)
@@ -134,19 +148,15 @@ st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</
 # --- 6. SECRET ADMIN PANEL ---
 st.write("---")
 with st.expander("🛠️ Admin Panel (Internal use only)"):
-    # Extra password to view email list
     admin_key = st.text_input("Enter Master Key to view clients:", type="password")
     
     if admin_key == "didactai2026": 
-        # Check database connection or local file
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df_clientes = conn.read()
-            
             st.write("### 👥 Registered Client List:")
-            st.dataframe(df_clientes) # Displaying as a professional table
+            st.dataframe(df_clientes)
             
-            # Download full database button
             csv = df_clientes.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Email Database (CSV)",
@@ -158,26 +168,3 @@ with st.expander("🛠️ Admin Panel (Internal use only)"):
             st.warning("No clients registered yet or database connection failed.")
     elif admin_key:
         st.error("Incorrect Master Key")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
