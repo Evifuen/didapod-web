@@ -30,28 +30,47 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. LOGIN & REGISTRO DE EMAIL ---
-if "auth" not in st.session_state: st.session_state["auth"] = False
+
+# --- 3. LOGIN & REGISTRO PERMANENTE ---
+if "auth" not in st.session_state: 
+    st.session_state["auth"] = False
 
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 📝 DIDAPOD PRO")
+        st.markdown("### 📝 Acceso Clientes")
         email_cliente = st.text_input("📧 Tu Email para registro")
-        # Relleno automático de User y Pass para que no tengas que escribirlos
+        
+        # Relleno automático de credenciales
         u = st.text_input("User", value="admin")
         p = st.text_input("Pass", type="password", value="didactai2026")
         
         if st.form_submit_button("Entrar a DIDAPOD"):
             if email_cliente and u == "admin" and p == "didactai2026":
-                # GUARDAR EMAIL (Para tu base de datos de clientes)
-                with open("clientes.txt", "a") as f:
-                    f.write(f"{email_cliente}\n")
-                st.session_state["auth"] = True
-                st.rerun()
+                try:
+                    # Conexión permanente a Google Sheets
+                    conn = st.connection("gsheets", type=GSheetsConnection)
+                    
+                    # Intentar leer datos; si falla (hoja vacía), crear estructura
+                    try:
+                        df_existente = conn.read()
+                    except:
+                        df_existente = pd.DataFrame(columns=["Email", "Fecha"])
+                    
+                    # Añadir el nuevo cliente
+                    nuevo_registro = pd.DataFrame([{"Email": email_cliente, "Fecha": str(pd.Timestamp.now())}])
+                    df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
+                    
+                    # Guardar en la nube (Google Sheets)
+                    conn.update(data=df_final)
+                    
+                    st.session_state["auth"] = True
+                    st.session_state["user_email"] = email_cliente # Guardamos el email para saludarlo
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error de conexión con la base de datos: {e}")
             else:
-                st.error("Por favor rellena el email y usa las credenciales correctas.")
-    st.stop()
-
+                st.error("Por favor, introduce un email y las credenciales correctas.")
+    st.stop() # Esto bloquea el resto de la app hasta que se logueen
 # --- 4. ENCABEZADO ---
 st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
 st.write("---")
@@ -134,6 +153,7 @@ with st.expander("🛠️ Admin Panel (Solo uso interno)"):
             st.warning("Aún no se ha registrado ningún cliente.")
     elif admin_key:
         st.error("Master Key incorrecta")
+
 
 
 
