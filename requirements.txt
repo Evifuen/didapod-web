@@ -1,10 +1,11 @@
+azure-cognitiveservices-speech
 streamlit
+st-gsheets-connection
+pandas
+deep-translator
 pydub
 SpeechRecognition
-deep-translator
-azure-cognitiveservices-speech
-streamlit-gsheets
-pandas
 requests
+
 
 
