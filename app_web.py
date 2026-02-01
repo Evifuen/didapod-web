@@ -163,3 +163,12 @@ st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</
 
 
 
+
+
+
+
+
+
+
+
+
