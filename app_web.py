@@ -21,40 +21,38 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-# Corregido: eliminada la doble extensión .png.png
 logo_data = get_base64_logo("logo2.png.png")
 
 # --- 2. PROFESSIONAL DESIGN ---
-st.markdown("""
+st.markdown(f"""
     <style>
-    .stApp { background-color: #0f172a !important; }
+    .stApp {{ background-color: #0f172a !important; }}
     
     /* LOGIN BUTTON IN BLACK WITH WHITE TEXT */
-    .stButton>button { 
+    div.stButton > button {{ 
         background-color: #000000 !important; 
-        color: #ffffff !important; /* Texto en blanco para que sea visible */
+        color: #ffffff !important; 
         border-radius: 12px !important; 
         font-weight: 800 !important; 
         width: 100% !important; 
-        border: 2px solid #ffffff !important; /* Borde blanco para resaltar */
+        border: 2px solid #ffffff !important; 
         height: 50px !important;
-    }
+    }}
     
-    .stButton>button:hover {
+    .stButton>button:hover {{
         background-color: #1e293b !important;
         border-color: #7c3aed !important;
         color: #7c3aed !important;
-    }
+    }}
 
-    h1, h2, h3, label, p, span { color: blue !important; }
+    h1, h2, h3, label, p, span {{ color: blue !important; }}
     
-    .logo-container {
+    .logo-container {{
         text-align: center;
         margin-bottom: 20px;
-    }
+    }}
     </style>
     """, unsafe_allow_html=True)
-
 
 # --- 3. LOGO DISPLAY ---
 if logo_data:
@@ -68,28 +66,20 @@ if not st.session_state["auth"]:
     with st.form("login"):
         st.markdown("### 📝 DIDAPOD PRO ACCESS")
         email_cliente = st.text_input("📧 Your Email for registration")
-        
-        # Automatic credential fill
         u = st.text_input("Username", value="admin")
         p = st.text_input("Password", type="password", value="didactai2026")
         
-        if st.form_submit_button("Enter DIDAPOD"):
+        if st.form_submit_button("ENTER DIDAPOD"):
             if email_cliente and u == "admin" and p == "didactai2026":
                 try:
-                    # Permanent connection to Google Sheets
                     conn = st.connection("gsheets", type=GSheetsConnection)
-                    
-                    # Try to read data; if it fails (empty sheet), create structure
                     try:
                         df_existente = conn.read()
                     except:
                         df_existente = pd.DataFrame(columns=["Email", "Date"])
                     
-                    # Add new client
                     nuevo_registro = pd.DataFrame([{"Email": email_cliente, "Date": str(pd.Timestamp.now())}])
                     df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                    
-                    # Save to cloud (Google Sheets)
                     conn.update(data=df_final)
                     
                     st.session_state["auth"] = True
@@ -105,8 +95,13 @@ if not st.session_state["auth"]:
 st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
 st.write("---")
 
-# --- 6. PROCESSING ---
-target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
+# --- 6. PROCESSING (NUEVA OPCIÓN DE GÉNERO) ---
+col1, col2 = st.columns(2)
+with col1:
+    target_lang = st.selectbox("Select Language:", ["English", "Spanish", "French", "Portuguese"])
+with col2:
+    voice_gender = st.selectbox("Select Voice Tone:", ["Male", "Female"])
+
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
 if up_file:
@@ -121,17 +116,30 @@ if up_file:
                 r = sr.Recognizer()
                 
                 codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                voice_m = {"English": "en-US-EmmaMultilingualNeural", "Spanish": "es-ES-ElviraNeural", "French": "fr-FR-DeniseNeural", "Portuguese": "pt-BR-FranciscaNeural"}
+                
+                # Configuración de voces según género y destino
+                if voice_gender == "Female":
+                    voice_m = {
+                        "English": "en-US-EmmaMultilingualNeural", 
+                        "Spanish": "es-ES-ElviraNeural", 
+                        "French": "fr-FR-DeniseNeural", 
+                        "Portuguese": "pt-BR-FranciscaNeural"
+                    }
+                else:
+                    voice_m = {
+                        "English": "en-US-AndrewMultilingualNeural", 
+                        "Spanish": "es-ES-AlvaroNeural", 
+                        "French": "fr-FR-RemyNeural", 
+                        "Portuguese": "pt-BR-AntonioNeural"
+                    }
 
                 for i, chunk in enumerate(chunks):
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
                         try:
-                            # Transcription & Translation
                             text = r.recognize_google(r.record(src), language="es-ES")
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
                             
-                            # AZURE ENGINE
                             speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
                             speech_config.speech_synthesis_voice_name = voice_m[target_lang]
                             
@@ -144,7 +152,6 @@ if up_file:
                             final_audio += AudioSegment.from_file(nombre_v)
                             os.remove(nombre_v)
                         except Exception as e:
-                            st.write(f"Fragment {i} skipped: {e}")
                             continue
                 
                 final_audio.export("result.mp3", format="mp3")
