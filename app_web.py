@@ -130,7 +130,11 @@ if up_file:
                             # 4. Unión del audio
                             final_audio += AudioSegment.from_file(nombre_archivo)
                             os.remove(nombre_archivo)
-                            
+                            # --- CONFIGURACIÓN DE AZURE (Fuera del bucle para mayor velocidad) ---
+                speech_config = speechsdk.SpeechConfig(
+                    subscription=AZURE_KEY, 
+                    region=AZURE_REGION
+                )
                         except Exception as e:
                             st.write(f"Error en fragmento {i}: {e}")
                             continue 
@@ -150,6 +154,7 @@ if up_file:
         except Exception as e: st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
