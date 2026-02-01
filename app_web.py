@@ -21,34 +21,46 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_data = get_base64_logo("logo2.png.png")
+# Corregido: eliminada la doble extensión .png.png
+logo_data = get_base64_logo("logo2.png")
 
 # --- 2. PROFESSIONAL DESIGN ---
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
     
-    /* LOGIN BUTTON IN BLACK */
+    /* LOGIN BUTTON IN BLACK WITH WHITE TEXT */
     .stButton>button { 
         background-color: #000000 !important; 
-        color: black !important; 
+        color: #ffffff !important; /* Texto en blanco para que sea visible */
         border-radius: 12px !important; 
         font-weight: 800 !important; 
         width: 100% !important; 
-        border: 2px solid #334155 !important;
+        border: 2px solid #ffffff !important; /* Borde blanco para resaltar */
+        height: 50px !important;
     }
     
     .stButton>button:hover {
         background-color: #1e293b !important;
         border-color: #7c3aed !important;
+        color: #7c3aed !important;
     }
 
     h1, h2, h3, label, p, span { color: white !important; }
+    
+    .logo-container {
+        text-align: center;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 
-# --- 3. LOGIN & PERMANENT REGISTRATION ---
+# --- 3. LOGO DISPLAY ---
+if logo_data:
+    st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_data}" width="200"></div>', unsafe_allow_html=True)
+
+# --- 4. LOGIN & PERMANENT REGISTRATION ---
 if "auth" not in st.session_state: 
     st.session_state["auth"] = False
 
@@ -81,19 +93,19 @@ if not st.session_state["auth"]:
                     conn.update(data=df_final)
                     
                     st.session_state["auth"] = True
-                    st.session_state["user_email"] = email_cliente # Store email for greeting
+                    st.session_state["user_email"] = email_cliente 
                     st.rerun()
                 except Exception as e:
                     st.error(f"Database connection error: {e}")
             else:
                 st.error("Please enter a valid email and the correct credentials.")
-    st.stop() # Blocks the rest of the app until login
+    st.stop() 
 
-# --- 4. HEADER ---
+# --- 5. HEADER ---
 st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
 st.write("---")
 
-# --- 5. PROCESSING ---
+# --- 6. PROCESSING ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
@@ -145,7 +157,7 @@ if up_file:
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
-# --- 6. SECRET ADMIN PANEL ---
+# --- 7. SECRET ADMIN PANEL ---
 st.write("---")
 with st.expander("🛠️ Admin Panel (Internal use only)"):
     admin_key = st.text_input("Enter Master Key to view clients:", type="password")
@@ -168,4 +180,5 @@ with st.expander("🛠️ Admin Panel (Internal use only)"):
             st.warning("No clients registered yet or database connection failed.")
     elif admin_key:
         st.error("Incorrect Master Key")
+
 
