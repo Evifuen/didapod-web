@@ -1,18 +1,17 @@
-import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
-import speech_recognition as sr
 import os
 import base64
 
-# --- 0. AUTOMATIC CREDENTIALS ---
+# --- 1. CONFIGURACIÓN DE AZURE (Cámbialo por tus Secrets) ---
 AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
-AZURE_REGION = st.secrets["AZURE_SPEECH_REGION"]
+AZURE_REGION = st.secrets["AZURE_REGION"]
 
-# --- 1. CONFIGURATION ---
+# --- 2. CONFIGURACIÓN DE PÁGINA Y DISEÑO ---
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -21,171 +20,128 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_data = get_base64_logo("logo2.png.png")
+logo_data = get_base64_logo("logo.png")
 
-# --- 2. PROFESSIONAL DESIGN ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #0f172a !important; }}
-    
-    /* LOGIN BUTTON IN BLACK WITH WHITE TEXT */
-    div.stButton > button {{ 
-        background-color: #000000 !important; 
-        color: #ffffff !important; 
-        border-radius: 12px !important; 
-        font-weight: 800 !important; 
-        width: 100% !important; 
-        border: 2px solid #ffffff !important; 
+    button[kind="primaryFormSubmit"], .stButton>button {{
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 2px solid #ffffff !important;
+        border-radius: 12px !important;
+        font-weight: 800 !important;
+        width: 100% !important;
         height: 50px !important;
     }}
-    
-    .stButton>button:hover {{
-        background-color: #1e293b !important;
-        border-color: #7c3aed !important;
-        color: #7c3aed !important;
-    }}
-
-    h1, h2, h3, label, p, span {{ color: blue !important; }}
-    
-    .logo-container {{
-        text-align: center;
-        margin-bottom: 20px;
-    }}
+    h1, h2, h3, label, p, span {{ color: white !important; }}
+    .logo-container {{ text-align: center; margin-bottom: 20px; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. LOGO DISPLAY ---
 if logo_data:
     st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_data}" width="200"></div>', unsafe_allow_html=True)
 
-# --- 4. LOGIN & PERMANENT REGISTRATION ---
-if "auth" not in st.session_state: 
-    st.session_state["auth"] = False
+# --- 3. LOGIN & GOOGLE SHEETS ---
+if "auth" not in st.session_state: st.session_state["auth"] = False
 
 if not st.session_state["auth"]:
     with st.form("login"):
         st.markdown("### 📝 DIDAPOD PRO ACCESS")
-        email_cliente = st.text_input("📧 Your Email for registration")
-        u = st.text_input("Username", value="admin")
-        p = st.text_input("Password", type="password", value="didactai2026")
-        
+        email = st.text_input("📧 Your Email")
         if st.form_submit_button("ENTER DIDAPOD"):
-            if email_cliente and u == "admin" and p == "didactai2026":
+            if email:
                 try:
                     conn = st.connection("gsheets", type=GSheetsConnection)
-                    try:
-                        df_existente = conn.read()
-                    except:
-                        df_existente = pd.DataFrame(columns=["Email", "Date"])
-                    
-                    nuevo_registro = pd.DataFrame([{"Email": email_cliente, "Date": str(pd.Timestamp.now())}])
-                    df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                    conn.update(data=df_final)
-                    
+                    df = conn.read()
+                    nuevo = pd.DataFrame([{"Email": email, "Date": str(pd.Timestamp.now())}])
+                    conn.update(data=pd.concat([df, nuevo], ignore_index=True))
                     st.session_state["auth"] = True
-                    st.session_state["user_email"] = email_cliente 
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Database connection error: {e}")
-            else:
-                st.error("Please enter a valid email and the correct credentials.")
-    st.stop() 
+                except:
+                    st.session_state["auth"] = True
+                    st.rerun()
+    st.stop()
 
-# --- 5. HEADER ---
-st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
-st.write("---")
+# --- 4. INTERFAZ ---
+st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO (AZURE)</h1>", unsafe_allow_html=True)
+st.write("<p style='text-align:center;'>Detección automática de idioma activada.</p>", unsafe_allow_html=True)
 
-# --- 6. PROCESSING (NUEVA OPCIÓN DE GÉNERO) ---
-col1, col2 = st.columns(2)
-with col1:
-    target_lang = st.selectbox("Select Language:", ["English", "Spanish", "French", "Portuguese"])
-with col2:
-    voice_gender = st.selectbox("Select Voice Tone:", ["Male", "Female"])
+c1, c2 = st.columns(2)
+with c1:
+    target_lang = st.selectbox("Traducir a:", ["English", "Spanish", "French", "Portuguese", "German"])
+with c2:
+    gender = st.selectbox("Voz de salida:", ["Male", "Female"])
 
-up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
+up_file = st.file_uploader("Sube tu podcast (Cualquier idioma)", type=["mp3", "wav"])
 
 if up_file:
     st.audio(up_file)
-    if st.button("🚀 START AI DUBBING"):
+    if st.button("🚀 INICIAR TRADUCCIÓN PRO"):
         try:
-            with st.spinner("🤖 AI Dubbing in progress..."):
+            with st.spinner("🤖 Azure detectando idioma y traduciendo..."):
+                # Guardar archivo temporal
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 final_audio = AudioSegment.empty()
-                r = sr.Recognizer()
+
+                # CONFIGURACIÓN DE AZURE
+                speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
                 
-                codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                
-                # Configuración de voces según género y destino
-                if voice_gender == "Female":
-                    voice_m = {
-                        "English": "en-US-EmmaMultilingualNeural", 
-                        "Spanish": "es-ES-ElviraNeural", 
-                        "French": "fr-FR-DeniseNeural", 
-                        "Portuguese": "pt-BR-FranciscaNeural"
-                    }
-                else:
-                    voice_m = {
-                        "English": "en-US-AndrewMultilingualNeural", 
-                        "Spanish": "es-ES-AlvaroNeural", 
-                        "French": "fr-FR-RemyNeural", 
-                        "Portuguese": "pt-BR-AntonioNeural"
-                    }
+                # Mapeo de idiomas y voces
+                codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt", "German": "de"}
+                voices = {
+                    "English": "en-US-AndrewNeural" if gender == "Male" else "en-US-AvaNeural",
+                    "Spanish": "es-ES-AlvaroNeural" if gender == "Male" else "es-ES-ElviraNeural",
+                    "French": "fr-FR-RemyNeural" if gender == "Male" else "fr-FR-DeniseNeural",
+                    "Portuguese": "pt-BR-AntonioNeural" if gender == "Male" else "pt-BR-FranciscaNeural",
+                    "German": "de-DE-ConradNeural" if gender == "Male" else "de-DE-KatjaNeural"
+                }
+
+                # CONFIGURACIÓN DE DETECCIÓN AUTOMÁTICA
+                # Le decimos a Azure qué idiomas debe intentar identificar
+                auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
+                    languages=["es-ES", "en-US", "fr-FR", "pt-BR", "de-DE"]
+                )
 
                 for i, chunk in enumerate(chunks):
                     chunk.export("c.wav", format="wav")
-                    with sr.AudioFile("c.wav") as src:
-                        try:
-                            text = r.recognize_google(r.record(src), language="es-ES")
-                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
-                            
-                            speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
-                            speech_config.speech_synthesis_voice_name = voice_m[target_lang]
-                            
-                            nombre_v = f"v{i}.mp3"
-                            audio_out = speechsdk.audio.AudioOutputConfig(filename=nombre_v)
-                            syn = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_out)
-                            
-                            syn.speak_text_async(trans).get() 
-                            
-                            final_audio += AudioSegment.from_file(nombre_v)
-                            os.remove(nombre_v)
-                        except Exception as e:
-                            continue
-                
-                final_audio.export("result.mp3", format="mp3")
+                    audio_config = speechsdk.audio.AudioConfig(filename="c.wav")
+                    
+                    # Reconocedor con auto-detección
+                    recognizer = speechsdk.SpeechRecognizer(
+                        speech_config=speech_config, 
+                        auto_detect_source_language_config=auto_detect_config, 
+                        audio_config=audio_config
+                    )
+                    
+                    result = recognizer.recognize_once()
+
+                    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                        # Azure nos dice qué detectó
+                        detected_lang = result.properties[speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguageResult]
+                        text = result.text
+                        
+                        # Traducir texto
+                        trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
+                        
+                        # Generar nueva voz (TTS)
+                        speech_config.speech_synthesis_voice_name = voices[target_lang]
+                        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+                        res_voice = synthesizer.speak_text_async(trans).get()
+                        
+                        with open(f"v{i}.wav", "wb") as f: f.write(res_voice.audio_data)
+                        final_audio += AudioSegment.from_file(f"v{i}.wav")
+                        os.remove(f"v{i}.wav")
+
+                final_audio.export("result_pro.mp3", format="mp3")
                 st.balloons()
-                st.audio("result.mp3")
-                with open("result.mp3", "rb") as f:
-                    st.download_button("📥 DOWNLOAD FINAL PODCAST", f, "didapod_pro.mp3")
+                st.audio("result_pro.mp3")
+                with open("result_pro.mp3", "rb") as f:
+                    st.download_button("📥 DESCARGAR PODCAST", f, "didapod_pro.mp3")
 
-        except Exception as e: st.error(f"Critical error: {e}")
+        except Exception as e: st.error(f"Error: {e}")
 
-st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
-# --- 7. SECRET ADMIN PANEL ---
-st.write("---")
-with st.expander("🛠️ Admin Panel (Internal use only)"):
-    admin_key = st.text_input("Enter Master Key to view clients:", type="password")
-    
-    if admin_key == "didactai2026": 
-        try:
-            conn = st.connection("gsheets", type=GSheetsConnection)
-            df_clientes = conn.read()
-            st.write("### 👥 Registered Client List:")
-            st.dataframe(df_clientes)
-            
-            csv = df_clientes.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Email Database (CSV)",
-                data=csv,
-                file_name="client_database.csv",
-                mime="text/csv"
-            )
-        except:
-            st.warning("No clients registered yet or database connection failed.")
-    elif admin_key:
-        st.error("Incorrect Master Key")
 
 
