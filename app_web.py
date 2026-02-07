@@ -101,7 +101,7 @@ if up_file:
     st.info(f"⏱️ Duración detectada: {duracion_seg:.2f} segundos")
 
     # BLINDAJE DE COSTOS: Límite de 5 minutos por archivo
-    if duracion_seg > 300:
+    if duracion_seg > 1800:
         st.error("🛑 El archivo supera los 5 minutos permitidos. Por favor, recorta el audio.")
         os.remove(temp_input)
     else:
@@ -178,3 +178,4 @@ if up_file:
                 print(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#475569;'>DIDAPOD PRO © 2026 | Seguridad Nivel Enterprise</small></center>", unsafe_allow_html=True)
+
