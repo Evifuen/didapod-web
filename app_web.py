@@ -101,7 +101,7 @@ if up_file:
     st.info(f"⏱️ Duración detectada: {duracion_seg:.2f} segundos")
 
     # BLINDAJE DE COSTOS: Límite de 5 minutos por archivo
-    if duracion_seg > 3000:
+    if duracion_seg > 300:
         st.error("🛑 El archivo supera los 5 minutos permitidos. Por favor, recorta el audio.")
         os.remove(temp_input)
     else:
