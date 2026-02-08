@@ -54,11 +54,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LOGIN ---
+# --- 2. LOGIN (CON AUTOCOMPLETADO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
-        u, p = st.text_input("User"), st.text_input("Pass", type="password")
+        # Se agregan los valores por defecto en el parámetro 'value'
+        u = st.text_input("User", value="admin")
+        p = st.text_input("Pass", type="password", value="didactai2026")
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026":
                 st.session_state["auth"] = True
