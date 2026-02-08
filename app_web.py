@@ -7,15 +7,15 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 from datetime import datetime
-import pandas as pd  # IMPORTANTE: Añadir para leer la nube
-import requests      # IMPORTANTE: Añadir para escribir en la nube
+import pandas as pd  # Necesario para leer la nube
+import requests      # Necesario para escribir en la nube
 
-# --- CONFIGURACIÓN DE NUBE (REEMPLAZA ESTO) ---
-# URL de "Publicar en la web" como CSV
-SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_AQUI" 
-# URL de "Obtener enlace rellenado previamente" de tu Google Form (solo la base)
+# --- CONFIGURACIÓN NUBE (REEMPLAZA ESTO) ---
+# 1. En Google Sheets: Archivo > Compartir > Publicar en la Web > CSV. Pega el link aquí:
+SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_COMO_CSV" 
+# 2. En Google Forms: El link de "formResponse" (mira mi explicación abajo):
 FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
-# El ID del campo de texto en tu Google Form (ej: entry.12345678)
+# 3. El ID del campo de texto de tu formulario (ej: entry.1234567):
 FORM_ENTRY_ID = "entry.XXXXXXXXX"
 
 # --- 1. CONFIGURATION & STYLE ---
@@ -67,21 +67,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- EMAIL LIMIT VALIDATION (MODIFICADO PARA GOOGLE SHEETS) ---
+# --- EMAIL LIMIT VALIDATION (AHORA EN LA NUBE) ---
 def check_email_limit(email):
     try:
-        # Lee la base de datos directamente desde Google Sheets
         df = pd.read_csv(SHEET_CSV_URL)
-        # Busca el email en cualquier columna (asumiendo que los guardas ahí)
+        # Cuenta ocurrencias del email en la hoja de Google
         count = df.astype(str).apply(lambda x: x.str.contains(email, case=False)).any(axis=1).sum()
         return count
-    except Exception as e:
-        # Si falla (ej: hoja vacía), permite el paso inicial
+    except:
         return 0
 
 def register_email_cloud(email):
-    # Envía el email a la nube mediante Google Forms de forma silenciosa
     try:
+        # Envía el email al formulario vinculado a tu Google Sheet
         payload = {FORM_ENTRY_ID: email}
         requests.post(FORM_URL, data=payload)
     except:
@@ -103,7 +101,6 @@ if not st.session_state["auth"]:
                     if attempts >= 2:
                         st.error(f"🚫 Access denied for {user_email}. Limit reached.")
                     else:
-                        # Registro en la nube en lugar de archivo local
                         register_email_cloud(user_email)
                         st.session_state["auth"] = True
                         st.rerun()
@@ -152,7 +149,6 @@ if up_file:
                 r = sr.Recognizer()
                 
                 codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                
                 voices_db = {
                     "English": {"Female": "en-US-EmmaMultilingualNeural", "Male": "en-US-BrianNeural"},
                     "Spanish": {"Female": "es-ES-ElviraNeural", "Male": "es-ES-AlvaroNeural"},
@@ -210,7 +206,7 @@ if up_file:
         except Exception as e: 
             st.error(f"General Error: {e}")
 
-# --- 5. DATA LOG VIEW (MODIFICADO PARA NUBE) ---
+# --- 5. DATA LOG VIEW (DESDE LA NUBE) ---
 st.write("---")
 with st.expander("📊 View Registered Emails (Admin Only)"):
     try:
