@@ -8,7 +8,7 @@ from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -43,35 +43,42 @@ st.markdown("""
         width: 100% !important; 
         border: 1px solid white !important;
     }
-    h1, h2, h3, label, p, span { color: white !important; }
+    h1, h2, h3, label, p, span { color: blue !important; }
     .stSpinner > div { border-top-color: #7c3aed !important; }
+    .log-box { 
+        background-color: rgba(255,255,255,0.05); 
+        padding: 10px; 
+        border-radius: 8px; 
+        margin-bottom: 5px;
+        border-left: 4px solid #7c3aed;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNCIÓN DE VALIDACIÓN DE LÍMITE ---
-def validar_limite_email(email):
+# --- EMAIL LIMIT VALIDATION ---
+def check_email_limit(email):
     if not os.path.exists("database_emails.txt"):
         return 0
     with open("database_emails.txt", "r") as f:
-        lineas = f.readlines()
-        conteo = sum(1 for linea in lineas if email in linea)
-        return conteo
+        lines = f.readlines()
+        count = sum(1 for line in lines if email in line)
+        return count
 
-# --- 2. LOGIN (CON LÍMITE DE REGISTRO) ---
+# --- 2. LOGIN (WITH LIMIT & AUTO-FILL) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 🔐 PANEL DE ACCESO")
-        user_email = st.text_input("Correo Electrónico")
+        st.markdown("### 🔐 ACCESS PANEL")
+        user_email = st.text_input("Email Address")
         u = st.text_input("User", value="admin")
         p = st.text_input("Pass", type="password", value="didactai2026")
         
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026":
                 if user_email and "@" in user_email:
-                    intentos = validar_limite_email(user_email)
-                    if intentos >= 2:
-                        st.error(f"🚫 El correo {user_email} ya ha alcanzado el límite máximo de 2 accesos.")
+                    attempts = check_email_limit(user_email)
+                    if attempts >= 2:
+                        st.error(f"🚫 Access denied. The email {user_email} has reached the maximum limit of 2 records.")
                     else:
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         with open("database_emails.txt", "a") as f:
@@ -79,10 +86,10 @@ if not st.session_state["auth"]:
                         st.session_state["auth"] = True
                         st.rerun()
                 else:
-                    st.error("Por favor, introduce un correo electrónico válido.")
+                    st.error("Please enter a valid email address.")
     st.stop()
 
-# --- 3. ENCABEZADO ---
+# --- 3. HEADER ---
 col_l, col_r = st.columns([1, 4])
 with col_l:
     if logo_data:
@@ -91,11 +98,11 @@ with col_l:
         st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
 with col_r:
     st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing with Auto-Language Detection</p>", unsafe_allow_html=True)
 
 st.write("---")
 
-# --- 4. PROCESAMIENTO ---
+# --- 4. PROCESSING ---
 target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
@@ -103,7 +110,8 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            with st.spinner("🤖 AI Dubbing in progress... detecting language and translating"):
+            log_container = st.container()
+            with st.spinner("🤖 AI Dubbing in progress... detecting and processing chunks"):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
@@ -120,19 +128,38 @@ if up_file:
                 }
 
                 for i, chunk in enumerate(chunks):
-                    chunk.export("c.wav", format="wav")
-                    with sr.AudioFile("c.wav") as src:
+                    chunk_path = f"c_{i}.wav"
+                    chunk.export(chunk_path, format="wav")
+                    with sr.AudioFile(chunk_path) as src:
                         try:
-                            # MODIFICACIÓN: Se elimina language="es-ES" para que Google detecte el idioma automáticamente
                             audio_data = r.record(src)
-                            text = r.recognize_google(audio_data) # Detección automática
+                            raw_response = r.recognize_google(audio_data, show_all=True)
                             
-                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
-                            asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(f"v{i}.mp3"))
-                            final_audio += AudioSegment.from_file(f"v{i}.mp3")
-                            os.remove(f"v{i}.mp3")
-                        except Exception as e:
+                            if raw_response and 'alternative' in raw_response:
+                                text = raw_response['alternative'][0]['transcript']
+                                
+                                translator = GoogleTranslator(source='auto', target=codes[target_lang])
+                                trans = translator.translate(text)
+                                detected_lang = translator.source
+                                
+                                # Real-time processing log in English
+                                log_container.markdown(f"""
+                                <div class="log-box">
+                                <b>Part {i+1}:</b> Detected Language: <code>{detected_lang.upper()}</code><br>
+                                <i>Text detected: "{text[:50]}..."</i>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                                voice_path = f"v_{i}.mp3"
+                                asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(voice_path))
+                                final_audio += AudioSegment.from_file(voice_path)
+                                
+                                os.remove(voice_path)
+                            
+                        except Exception:
                             continue
+                        finally:
+                            if os.path.exists(chunk_path): os.remove(chunk_path)
                 
                 final_audio.export("result.mp3", format="mp3")
             
@@ -147,15 +174,15 @@ if up_file:
             st.markdown("</div>", unsafe_allow_html=True)
 
         except Exception as e: 
-            st.error(f"Error: {e}")
+            st.error(f"General Error: {e}")
 
-# --- 5. VISUALIZACIÓN DE REGISTROS ---
+# --- 5. DATA LOG VIEW (Admin Only) ---
 st.write("---")
-with st.expander("📊 Ver correos registrados"):
+with st.expander("📊 View Registered Emails (Admin Only)"):
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
             st.text(f.read())
     else:
-        st.info("No hay correos registrados aún.")
+        st.info("No emails registered yet.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
