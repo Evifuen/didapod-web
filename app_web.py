@@ -6,7 +6,7 @@ import base64
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
-from datetime import datetime # Necesario para registrar la fecha y hora
+from datetime import datetime
 
 # --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
@@ -23,8 +23,6 @@ logo_data = get_base64_logo("logo2.png")
 st.markdown("""
     <style>
     .stApp { background-color: #0f172a !important; }
-    
-    /* DISEÑO DEL EXPANDER (BOTÓN ESCUCHAR) */
     .stExpander { 
         background-color: #7c3aed !important; 
         border: 2px solid white !important; 
@@ -36,8 +34,6 @@ st.markdown("""
         font-size: 19px !important;
         text-transform: uppercase !important;
     }
-    
-    /* BOTONES DE ACCIÓN */
     .stButton>button, .stDownloadButton>button { 
         background-color: #7c3aed !important; 
         color: white !important; 
@@ -47,10 +43,7 @@ st.markdown("""
         width: 100% !important; 
         border: 1px solid white !important;
     }
-    
     h1, h2, h3, label, p, span { color: white !important; }
-    
-    /* Estilo del Spinner (las pelotitas) */
     .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -60,16 +53,13 @@ if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
         st.markdown("### 🔐 PANEL DE ACCESO")
-        # Campo para pedir el Email
         user_email = st.text_input("Correo Electrónico")
-        # Campos de usuario y pass con el autocompletado solicitado
         u = st.text_input("User", value="admin")
         p = st.text_input("Pass", type="password", value="didactai2026")
         
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026":
-                if user_email and "@" in user_email: # Validación básica de email
-                    # ALMACENAMIENTO: Guardar email y fecha en archivo de texto
+                if user_email and "@" in user_email:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     with open("database_emails.txt", "a") as f:
                         f.write(f"{timestamp} | {user_email}\n")
@@ -132,7 +122,6 @@ if up_file:
             
             st.balloons()
             
-            # --- ZONA DE RESULTADO ---
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
             
@@ -146,5 +135,19 @@ if up_file:
 
         except Exception as e: 
             st.error(f"Error: {e}")
+
+# --- 5. SECCIÓN PARA MOSTRAR EMAILS (NUEVO) ---
+st.write("---")
+with st.expander("📊 VIEW REGISTERED EMAILS (Admin Only)"):
+    if os.path.exists("database_emails.txt"):
+        with open("database_emails.txt", "r") as f:
+            emails = f.readlines()
+            if emails:
+                for line in emails:
+                    st.text(line.strip())
+            else:
+                st.info("El archivo está vacío.")
+    else:
+        st.info("Aún no hay registros de emails.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
