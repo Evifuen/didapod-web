@@ -1,3 +1,6 @@
+import streamlit as st
+import edge_tts
+import asyncio
 import os
 import base64
 import speech_recognition as sr
@@ -6,6 +9,7 @@ from pydub import AudioSegment
 from datetime import datetime
 
 # --- 1. CONFIGURATION & STYLE ---
+# Corregido: Usamos un emoji estándar para evitar errores de NameError con variables no definidas
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -40,7 +44,7 @@ st.markdown("""
         width: 100% !important; 
         border: 1px solid white !important;
     }
-    h1, h2, h3, label, p, span { color: blue !important; }
+    h1, h2, h3, label, p, span { color: white !important; }
     .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -100,14 +104,14 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            # Spinner inicial
-            with st.spinner("🤖 Analyzing audio and preparing chunks..."):
+            # Los cuadros de texto (boxes) han sido removidos completamente.
+            with st.spinner("🤖 Processing audio..."):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 total_chunks = len(chunks)
                 
-                # Barra de progreso (vacía al inicio)
+                # Barra de progreso limpia
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
@@ -123,20 +127,22 @@ if up_file:
                 }
 
                 for i, chunk in enumerate(chunks):
-                    # Actualizar barra de progreso
+                    # Actualización de progreso
                     percent = (i + 1) / total_chunks
                     progress_bar.progress(percent)
-                    status_text.text(f"Processing chunk {i+1} of {total_chunks}...")
+                    status_text.text(f"Detección y traducción: {i+1} de {total_chunks}")
 
                     chunk_path = f"c_{i}.wav"
                     chunk.export(chunk_path, format="wav")
                     with sr.AudioFile(chunk_path) as src:
                         try:
                             audio_data = r.record(src)
+                            # Detección automática de idioma interna
                             raw_response = r.recognize_google(audio_data, show_all=True)
                             
                             if raw_response and 'alternative' in raw_response:
                                 text = raw_response['alternative'][0]['transcript']
+                                # source='auto' se encarga de la detección sin mostrar cuadros
                                 trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
 
                                 voice_path = f"v_{i}.mp3"
@@ -150,7 +156,8 @@ if up_file:
                             if os.path.exists(chunk_path): os.remove(chunk_path)
                 
                 final_audio.export("result.mp3", format="mp3")
-                status_text.text("Dubbing complete! 🎬")
+                status_text.empty()
+                progress_bar.empty()
             
             st.balloons()
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
