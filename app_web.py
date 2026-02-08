@@ -47,7 +47,7 @@ st.markdown("""
         border: 1px solid white !important;
     }
     
-    h1, h2, h3, label, p, span { color: white !important; }
+    h1, h2, h3, label, p, span { color: blue !important; }
     
     /* Estilo del Spinner (las pelotitas) */
     .stSpinner > div { border-top-color: #7c3aed !important; }
@@ -136,3 +136,4 @@ if up_file:
             st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
