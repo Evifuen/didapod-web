@@ -9,7 +9,6 @@ from pydub import AudioSegment
 from datetime import datetime
 
 # --- 1. CONFIGURATION & STYLE ---
-# Corregido: Usamos un emoji estándar para evitar errores de NameError con variables no definidas
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -46,6 +45,16 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stSpinner > div { border-top-color: #7c3aed !important; }
+    /* Estilo para la etiqueta de idioma detectado */
+    .lang-tag {
+        background-color: #1e293b;
+        color: #7c3aed;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        border: 1px solid #7c3aed;
+        font-size: 0.8rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -104,16 +113,17 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            # Los cuadros de texto (boxes) han sido removidos completamente.
             with st.spinner("🤖 Processing audio..."):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 total_chunks = len(chunks)
                 
-                # Barra de progreso limpia
+                # Elementos de progreso
                 progress_bar = st.progress(0)
-                status_text = st.empty()
+                info_col1, info_col2 = st.columns([1, 1])
+                status_text = info_col1.empty()
+                lang_label = info_col2.empty() # Etiqueta para el idioma detectado
                 
                 final_audio = AudioSegment.empty()
                 r = sr.Recognizer()
@@ -127,23 +137,27 @@ if up_file:
                 }
 
                 for i, chunk in enumerate(chunks):
-                    # Actualización de progreso
                     percent = (i + 1) / total_chunks
                     progress_bar.progress(percent)
-                    status_text.text(f"Detección y traducción: {i+1} de {total_chunks}")
+                    status_text.text(f"Chunk {i+1} of {total_chunks}")
 
                     chunk_path = f"c_{i}.wav"
                     chunk.export(chunk_path, format="wav")
                     with sr.AudioFile(chunk_path) as src:
                         try:
                             audio_data = r.record(src)
-                            # Detección automática de idioma interna
                             raw_response = r.recognize_google(audio_data, show_all=True)
                             
                             if raw_response and 'alternative' in raw_response:
                                 text = raw_response['alternative'][0]['transcript']
-                                # source='auto' se encarga de la detección sin mostrar cuadros
-                                trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
+                                
+                                # Traducción con auto-detección
+                                translator = GoogleTranslator(source='auto', target=codes[target_lang])
+                                trans = translator.translate(text)
+                                detected_lang = translator.source.upper() # Ej: ES, EN, FR
+                                
+                                # Mostramos solo la etiqueta pequeña con el idioma detectado
+                                lang_label.markdown(f'<div style="text-align:right;"><span class="lang-tag">Detected: {detected_lang}</span></div>', unsafe_allow_html=True)
 
                                 voice_path = f"v_{i}.mp3"
                                 asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(voice_path))
@@ -157,6 +171,7 @@ if up_file:
                 
                 final_audio.export("result.mp3", format="mp3")
                 status_text.empty()
+                lang_label.empty()
                 progress_bar.empty()
             
             st.balloons()
@@ -182,3 +197,4 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("No emails registered yet.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
