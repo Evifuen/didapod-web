@@ -1,6 +1,3 @@
-import streamlit as st
-import edge_tts
-import asyncio
 import os
 import base64
 import speech_recognition as sr
@@ -45,13 +42,6 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: blue !important; }
     .stSpinner > div { border-top-color: #7c3aed !important; }
-    .log-box { 
-        background-color: rgba(255,255,255,0.05); 
-        padding: 10px; 
-        border-radius: 8px; 
-        margin-bottom: 5px;
-        border-left: 4px solid #7c3aed;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -64,7 +54,7 @@ def check_email_limit(email):
         count = sum(1 for line in lines if email in line)
         return count
 
-# --- 2. LOGIN (WITH LIMIT & AUTO-FILL) ---
+# --- 2. LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -78,7 +68,7 @@ if not st.session_state["auth"]:
                 if user_email and "@" in user_email:
                     attempts = check_email_limit(user_email)
                     if attempts >= 2:
-                        st.error(f"🚫 Access denied. The email {user_email} has reached the maximum limit of 2 records.")
+                        st.error(f"🚫 Access denied for {user_email}. Limit reached.")
                     else:
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         with open("database_emails.txt", "a") as f:
@@ -98,7 +88,7 @@ with col_l:
         st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
 with col_r:
     st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing with Auto-Language Detection</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
 st.write("---")
 
@@ -110,11 +100,16 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            log_container = st.container()
-            with st.spinner("🤖 AI Dubbing in progress... detecting and processing chunks"):
+            # Spinner inicial
+            with st.spinner("🤖 Analyzing audio and preparing chunks..."):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
+                total_chunks = len(chunks)
+                
+                # Barra de progreso (vacía al inicio)
+                progress_bar = st.progress(0)
+                status_text = st.empty()
                 
                 final_audio = AudioSegment.empty()
                 r = sr.Recognizer()
@@ -128,6 +123,11 @@ if up_file:
                 }
 
                 for i, chunk in enumerate(chunks):
+                    # Actualizar barra de progreso
+                    percent = (i + 1) / total_chunks
+                    progress_bar.progress(percent)
+                    status_text.text(f"Processing chunk {i+1} of {total_chunks}...")
+
                     chunk_path = f"c_{i}.wav"
                     chunk.export(chunk_path, format="wav")
                     with sr.AudioFile(chunk_path) as src:
@@ -137,23 +137,11 @@ if up_file:
                             
                             if raw_response and 'alternative' in raw_response:
                                 text = raw_response['alternative'][0]['transcript']
-                                
-                                translator = GoogleTranslator(source='auto', target=codes[target_lang])
-                                trans = translator.translate(text)
-                                detected_lang = translator.source
-                                
-                                # Real-time processing log in English
-                                log_container.markdown(f"""
-                                <div class="log-box">
-                                <b>Part {i+1}:</b> Detected Language: <code>{detected_lang.upper()}</code><br>
-                                <i>Text detected: "{text[:50]}..."</i>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
 
                                 voice_path = f"v_{i}.mp3"
                                 asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(voice_path))
                                 final_audio += AudioSegment.from_file(voice_path)
-                                
                                 os.remove(voice_path)
                             
                         except Exception:
@@ -162,6 +150,7 @@ if up_file:
                             if os.path.exists(chunk_path): os.remove(chunk_path)
                 
                 final_audio.export("result.mp3", format="mp3")
+                status_text.text("Dubbing complete! 🎬")
             
             st.balloons()
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
@@ -176,7 +165,7 @@ if up_file:
         except Exception as e: 
             st.error(f"General Error: {e}")
 
-# --- 5. DATA LOG VIEW (Admin Only) ---
+# --- 5. DATA LOG VIEW ---
 st.write("---")
 with st.expander("📊 View Registered Emails (Admin Only)"):
     if os.path.exists("database_emails.txt"):
