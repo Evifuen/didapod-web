@@ -7,19 +7,16 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 from datetime import datetime
-import pandas as pd
-import requests
+import pandas as pd  # Para leer la nube
+import requests      # Para escribir en la nube
 
-# --- CONFIGURACIÓN DE GOOGLE (RELLENAR ESTOS 3 DATOS) ---
-# 1. En tu Google Sheet: Archivo -> Compartir -> Publicar en la web -> Formato CSV. Copia el link aquí:
+# --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
 SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_CSV" 
-# 2. El link de "formResponse" de tu Google Form vinculado a la hoja:
 FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
-# 3. El ID de la entrada del formulario (ej: entry.12345678):
 FORM_ENTRY_ID = "entry.XXXXXXXXX"
 
 # --- 1. CONFIGURATION & STYLE ---
-# Corregido: Usamos un string estándar para el icono para evitar el NameError de la imagen
+# Cambio mínimo: Icono estándar para evitar el NameError que viste en la imagen
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -68,23 +65,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- EMAIL LIMIT VALIDATION (MODO NUBE) ---
+# --- CAMBIO AQUÍ: VALIDACIÓN EN LA NUBE ---
 def check_email_limit(email):
     try:
-        # Lee la hoja de cálculo en la nube
         df = pd.read_csv(SHEET_CSV_URL)
-        # Cuenta cuántas veces aparece el email en la hoja
         count = df.astype(str).apply(lambda x: x.str.contains(email, case=False)).any(axis=1).sum()
         return count
     except:
-        # Si la hoja está vacía o no es accesible, asumimos 0 intentos
         return 0
 
 def register_email_cloud(email):
     try:
-        # Registra el email en la nube enviándolo al Google Form silenciosamente
-        payload = {FORM_ENTRY_ID: email}
-        requests.post(FORM_URL, data=payload)
+        requests.post(FORM_URL, data={FORM_ENTRY_ID: email})
     except:
         pass
 
@@ -112,7 +104,7 @@ if not st.session_state["auth"]:
                     st.error("Please enter a valid email address.")
     st.stop()
 
-# --- 3. HEADER ---
+# --- 3. HEADER (INTACTO) ---
 col_l, col_r = st.columns([1, 4])
 with col_l:
     if logo_data:
@@ -125,7 +117,7 @@ with col_r:
 
 st.write("---")
 
-# --- 4. PROCESSING ---
+# --- 4. PROCESSING (INTACTO) ---
 col1, col2 = st.columns(2)
 with col1:
     target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -210,11 +202,10 @@ if up_file:
         except Exception as e: 
             st.error(f"General Error: {e}")
 
-# --- 5. DATA LOG VIEW (MODIFICADO PARA NUBE) ---
+# --- 5. DATA LOG VIEW (DESDE LA NUBE) ---
 st.write("---")
-with st.expander("📊 VIEW REGISTERED EMAILS (ADMIN ONLY)"):
+with st.expander("📊 View Registered Emails (Admin Only)"):
     try:
-        # Intenta leer de la nube
         df_cloud = pd.read_csv(SHEET_CSV_URL)
         st.dataframe(df_cloud)
     except:
