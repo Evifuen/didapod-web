@@ -45,7 +45,6 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stSpinner > div { border-top-color: #7c3aed !important; }
-    /* Estilo para la etiqueta de idioma detectado */
     .lang-tag {
         background-color: #1e293b;
         color: #7c3aed;
@@ -106,7 +105,12 @@ with col_r:
 st.write("---")
 
 # --- 4. PROCESSING ---
-target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
+col1, col2 = st.columns(2)
+with col1:
+    target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
+with col2:
+    voice_gender = st.selectbox("Select Voice Gender:", ["Female", "Male"])
+
 up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
 
 if up_file:
@@ -119,22 +123,25 @@ if up_file:
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 total_chunks = len(chunks)
                 
-                # Elementos de progreso
                 progress_bar = st.progress(0)
                 info_col1, info_col2 = st.columns([1, 1])
                 status_text = info_col1.empty()
-                lang_label = info_col2.empty() # Etiqueta para el idioma detectado
+                lang_label = info_col2.empty()
                 
                 final_audio = AudioSegment.empty()
                 r = sr.Recognizer()
                 
                 codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                voice_m = {
-                    "English": "en-US-EmmaMultilingualNeural", 
-                    "Spanish": "es-ES-ElviraNeural", 
-                    "French": "fr-FR-DeniseNeural",
-                    "Portuguese": "pt-BR-FranciscaNeural"
+                
+                # Mapa de voces (Neural Voices)
+                voices_db = {
+                    "English": {"Female": "en-US-EmmaMultilingualNeural", "Male": "en-US-BrianNeural"},
+                    "Spanish": {"Female": "es-ES-ElviraNeural", "Male": "es-ES-AlvaroNeural"},
+                    "French": {"Female": "fr-FR-DeniseNeural", "Male": "fr-FR-HenriNeural"},
+                    "Portuguese": {"Female": "pt-BR-FranciscaNeural", "Male": "pt-BR-AntonioNeural"}
                 }
+                
+                selected_voice = voices_db[target_lang][voice_gender]
 
                 for i, chunk in enumerate(chunks):
                     percent = (i + 1) / total_chunks
@@ -150,17 +157,14 @@ if up_file:
                             
                             if raw_response and 'alternative' in raw_response:
                                 text = raw_response['alternative'][0]['transcript']
-                                
-                                # Traducción con auto-detección
                                 translator = GoogleTranslator(source='auto', target=codes[target_lang])
                                 trans = translator.translate(text)
-                                detected_lang = translator.source.upper() # Ej: ES, EN, FR
+                                detected_lang = translator.source.upper()
                                 
-                                # Mostramos solo la etiqueta pequeña con el idioma detectado
                                 lang_label.markdown(f'<div style="text-align:right;"><span class="lang-tag">Detected: {detected_lang}</span></div>', unsafe_allow_html=True)
 
                                 voice_path = f"v_{i}.mp3"
-                                asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(voice_path))
+                                asyncio.run(edge_tts.Communicate(trans, selected_voice).save(voice_path))
                                 final_audio += AudioSegment.from_file(voice_path)
                                 os.remove(voice_path)
                             
@@ -197,4 +201,3 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("No emails registered yet.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
