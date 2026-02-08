@@ -7,6 +7,16 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 from datetime import datetime
+import pandas as pd  # IMPORTANTE: Añadir para leer la nube
+import requests      # IMPORTANTE: Añadir para escribir en la nube
+
+# --- CONFIGURACIÓN DE NUBE (REEMPLAZA ESTO) ---
+# URL de "Publicar en la web" como CSV
+SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_AQUI" 
+# URL de "Obtener enlace rellenado previamente" de tu Google Form (solo la base)
+FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
+# El ID del campo de texto en tu Google Form (ej: entry.12345678)
+FORM_ENTRY_ID = "entry.XXXXXXXXX"
 
 # --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
@@ -57,14 +67,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- EMAIL LIMIT VALIDATION ---
+# --- EMAIL LIMIT VALIDATION (MODIFICADO PARA GOOGLE SHEETS) ---
 def check_email_limit(email):
-    if not os.path.exists("database_emails.txt"):
-        return 0
-    with open("database_emails.txt", "r") as f:
-        lines = f.readlines()
-        count = sum(1 for line in lines if email in line)
+    try:
+        # Lee la base de datos directamente desde Google Sheets
+        df = pd.read_csv(SHEET_CSV_URL)
+        # Busca el email en cualquier columna (asumiendo que los guardas ahí)
+        count = df.astype(str).apply(lambda x: x.str.contains(email, case=False)).any(axis=1).sum()
         return count
+    except Exception as e:
+        # Si falla (ej: hoja vacía), permite el paso inicial
+        return 0
+
+def register_email_cloud(email):
+    # Envía el email a la nube mediante Google Forms de forma silenciosa
+    try:
+        payload = {FORM_ENTRY_ID: email}
+        requests.post(FORM_URL, data=payload)
+    except:
+        pass
 
 # --- 2. LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
@@ -82,9 +103,8 @@ if not st.session_state["auth"]:
                     if attempts >= 2:
                         st.error(f"🚫 Access denied for {user_email}. Limit reached.")
                     else:
-                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        with open("database_emails.txt", "a") as f:
-                            f.write(f"{timestamp} | {user_email}\n")
+                        # Registro en la nube en lugar de archivo local
+                        register_email_cloud(user_email)
                         st.session_state["auth"] = True
                         st.rerun()
                 else:
@@ -133,7 +153,6 @@ if up_file:
                 
                 codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 
-                # Mapa de voces (Neural Voices)
                 voices_db = {
                     "English": {"Female": "en-US-EmmaMultilingualNeural", "Male": "en-US-BrianNeural"},
                     "Spanish": {"Female": "es-ES-ElviraNeural", "Male": "es-ES-AlvaroNeural"},
@@ -191,13 +210,13 @@ if up_file:
         except Exception as e: 
             st.error(f"General Error: {e}")
 
-# --- 5. DATA LOG VIEW ---
+# --- 5. DATA LOG VIEW (MODIFICADO PARA NUBE) ---
 st.write("---")
 with st.expander("📊 View Registered Emails (Admin Only)"):
-    if os.path.exists("database_emails.txt"):
-        with open("database_emails.txt", "r") as f:
-            st.text(f.read())
-    else:
-        st.info("No emails registered yet.")
+    try:
+        df_cloud = pd.read_csv(SHEET_CSV_URL)
+        st.dataframe(df_cloud)
+    except:
+        st.info("Cloud database is currently empty or unreachable.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
