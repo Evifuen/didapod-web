@@ -8,15 +8,11 @@ import os
 import base64
 import time
 
-# --- 1. SECURITY CONFIGURATION (SECRETS) ---
-try:
-    AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
-    AZURE_REGION = st.secrets["AZURE_REGION"]
-except:
-    st.error("Missing Azure Credentials! Please check your Secrets in Streamlit Cloud.")
-    st.stop()
+# --- 1. CONFIGURACIÓN DE SEGURIDAD (SECRETS) ---
+AZURE_KEY = st.secrets["AZURE_SPEECH_KEY"]
+AZURE_REGION = st.secrets["AZURE_REGION"]
 
-# --- 2. PAGE CONFIG & CUSTOM STYLES ---
+# --- 2. CONFIGURACIÓN DE PÁGINA Y BLINDAJE VISUAL ---
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -25,14 +21,19 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_data = get_base64_logo("logo2.png")
+logo_data = get_base64_logo("logo.png")
 
+# CSS BLINDADO: Oculta menús de Streamlit y fuerza el diseño profesional
 st.markdown(f"""
     <style>
+    /* Ocultar elementos de Streamlit para que parezca una App propia */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     header {{visibility: hidden;}}
+    
     .stApp {{ background-color: #0f172a !important; }}
+    
+    /* Botón de entrada y botones generales */
     button[kind="primaryFormSubmit"], .stButton>button {{
         background-color: #000000 !important;
         color: #ffffff !important;
@@ -42,6 +43,7 @@ st.markdown(f"""
         width: 100% !important;
         height: 50px !important;
     }}
+    
     h1, h2, h3, label, p, span {{ color: white !important; }}
     .logo-container {{ text-align: center; margin-bottom: 20px; }}
     </style>
@@ -50,63 +52,68 @@ st.markdown(f"""
 if logo_data:
     st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_data}" width="200"></div>', unsafe_allow_html=True)
 
-# --- 3. LOGIN & ACCESS ---
+# --- 3. LOGIN & ACCESO BLINDADO ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 🔐 DIDAPOD RESTRICTED ACCESS")
-        email = st.text_input("📧 Authorized Email")
-        if st.form_submit_button("VALIDATE LICENSE"):
+        st.markdown("### 🔐 ACCESO RESTRINGIDO DIDAPOD")
+        email = st.text_input("📧 Correo Autorizado")
+        # Aquí podrías pedir una clave específica si la tienes en el Excel
+        if st.form_submit_button("VALIDAR LICENCIA"):
             if email:
                 try:
                     conn = st.connection("gsheets", type=GSheetsConnection)
                     df = conn.read()
-                    new_entry = pd.DataFrame([{"Email": email, "Date": str(pd.Timestamp.now())}])
-                    conn.update(data=pd.concat([df, new_entry], ignore_index=True))
+                    nuevo = pd.DataFrame([{"Email": email, "Date": str(pd.Timestamp.now())}])
+                    conn.update(data=pd.concat([df, nuevo], ignore_index=True))
                     st.session_state["auth"] = True
                     st.rerun()
                 except:
-                    st.session_state["auth"] = True 
+                    st.session_state["auth"] = True # Fallback para que no se trabe
                     st.rerun()
     st.stop()
 
-# --- 4. USER INTERFACE ---
+# --- 4. INTERFAZ DE USUARIO ---
 st.markdown("<h1 style='text-align:center;'>🎙️ DIDAPOD PRO v2.0</h1>", unsafe_allow_html=True)
-st.write("<p style='text-align:center; color:#94a3b8;'>Azure AI Engine with Automatic Language Detection</p>", unsafe_allow_html=True)
+st.write("<p style='text-align:center; color:#94a3b8;'>Motor de Inteligencia Artificial Azure con Detección Automática</p>", unsafe_allow_html=True)
 
 c1, c2 = st.columns(2)
 with c1:
-    target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese", "German"])
+    target_lang = st.selectbox("Idioma de salida:", ["English", "Spanish", "French", "Portuguese", "German"])
 with c2:
-    gender = st.selectbox("Voice Tone:", ["Male", "Female"])
+    gender = st.selectbox("Tono de Voz:", ["Male", "Female"])
 
-up_file = st.file_uploader("Upload Podcast (Formats: MP3, WAV)", type=["mp3", "wav"])
+up_file = st.file_uploader("Cargar Podcast (Formatos: MP3, WAV)", type=["mp3", "wav"])
 
-# --- 5. PROCESSING LOGIC ---
+# --- 5. LÓGICA DE PROCESAMIENTO BLINDADA ---
 if up_file:
+    # Generar un ID único para esta sesión y evitar cruces de archivos
     session_id = str(int(time.time()))
     temp_input = f"input_{session_id}.mp3"
     
     with open(temp_input, "wb") as f: 
         f.write(up_file.getbuffer())
     
-    try:
-        audio_check = AudioSegment.from_file(temp_input)
-        duration_sec = len(audio_check) / 1000
-        st.info(f"⏱️ Duration detected: {duration_sec:.2f} seconds")
+    audio_check = AudioSegment.from_file(temp_input)
+    duracion_seg = len(audio_check) / 1000
+    
+    st.info(f"⏱️ Duración detectada: {duracion_seg:.2f} segundos")
 
-        if st.button("🚀 START SMART TRANSLATION"):
+    # BLINDAJE DE COSTOS: Límite de 5 minutos por archivo
+    if duracion_seg > 300:
+        st.error("🛑 El archivo supera los 5 minutos permitidos. Por favor, recorta el audio.")
+        os.remove(temp_input)
+    else:
+        if st.button("🚀 INICIAR TRADUCCIÓN INTELIGENTE"):
             try:
-                with st.spinner("🤖 Azure is analyzing and dubbing the audio..."):
-                    # Process in 30-second chunks for better reliability
+                with st.spinner("🤖 Azure está analizando y doblando el audio..."):
                     chunks = [audio_check[i:i + 30000] for i in range(0, len(audio_check), 30000)]
                     final_audio = AudioSegment.empty()
                     
                     speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_REGION)
-                    # Force compatible audio format for Windows/Web players
-                    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm)
                     
+                    # Configuración de Voces y Detección
                     codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt", "German": "de"}
                     voices = {
                         "English": "en-US-AndrewNeural" if gender == "Male" else "en-US-AvaNeural",
@@ -116,17 +123,15 @@ if up_file:
                         "German": "de-DE-ConradNeural" if gender == "Male" else "de-DE-KatjaNeural"
                     }
 
-                    progress_bar = st.progress(0)
-                    
+                    auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
+                        languages=["es-ES", "en-US", "fr-FR", "pt-BR", "de-DE"]
+                    )
+
                     for i, chunk in enumerate(chunks):
                         chunk_path = f"chunk_{session_id}_{i}.wav"
                         chunk.export(chunk_path, format="wav")
                         
                         audio_config = speechsdk.audio.AudioConfig(filename=chunk_path)
-                        auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
-                            languages=["es-ES", "en-US", "fr-FR", "pt-BR", "de-DE"]
-                        )
-                        
                         recognizer = speechsdk.SpeechRecognizer(
                             speech_config=speech_config, 
                             auto_detect_source_language_config=auto_detect_config, 
@@ -136,43 +141,42 @@ if up_file:
                         result = recognizer.recognize_once()
 
                         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                            # AI Translation
-                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(result.text)
+                            text = result.text
+                            # Traducción
+                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
                             
-                            # Voice Synthesis
+                            # Síntesis de Voz
                             speech_config.speech_synthesis_voice_name = voices[target_lang]
                             synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
                             res_voice = synthesizer.speak_text_async(trans).get()
                             
-                            if res_voice.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                                voice_path = f"v_{session_id}_{i}.wav"
-                                with open(voice_path, "wb") as f: 
-                                    f.write(res_voice.audio_data)
-                                
-                                final_audio += AudioSegment.from_wav(voice_path)
-                                os.remove(voice_path)
-
-                        if os.path.exists(chunk_path):
+                            voice_path = f"v_{session_id}_{i}.wav"
+                            with open(voice_path, "wb") as f: 
+                                f.write(res_voice.audio_data)
+                            
+                            final_audio += AudioSegment.from_file(voice_path)
+                            
+                            # Limpieza inmediata de fragmentos
                             os.remove(chunk_path)
-                        progress_bar.progress((i + 1) / len(chunks))
+                            os.remove(voice_path)
 
-                    # Final export
                     output_file = f"result_{session_id}.mp3"
-                    final_audio.export(output_file, format="mp3", bitrate="192k")
+                    final_audio.export(output_file, format="mp3")
                     
-                    st.success("✅ Translation completed!")
+                    st.success("✅ ¡Traducción completada!")
                     st.audio(output_file)
                     
                     with open(output_file, "rb") as f:
-                        st.download_button("📥 DOWNLOAD RESULT", f, f"didapod_{target_lang}.mp3")
+                        st.download_button("📥 DESCARGAR RESULTADO", f, f"didapod_{target_lang}.mp3")
                     
+                    # Limpieza del resultado final después de mostrarlo
                     os.remove(temp_input)
 
             except Exception as e:
-                st.error("A technical error occurred. Please contact support.")
-                st.info(f"System details: {e}")
-    except Exception as e:
-        st.error("Error loading file. Please ensure it is a valid MP3 or WAV.")
+                st.error(f"Se ha producido un error técnico. Contacte a soporte.")
+                # Log del error real solo para el desarrollador (consola)
+                print(f"Error: {e}")
 
-st.markdown("<br><hr><center><small style='color:#475569;'>DIDAPOD PRO © 2026 | Enterprise Grade Security</small></center>", unsafe_allow_html=True)
+st.markdown("<br><hr><center><small style='color:#475569;'>DIDAPOD PRO © 2026 | Seguridad Nivel Enterprise</small></center>", unsafe_allow_html=True)
+
 
