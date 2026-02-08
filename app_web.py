@@ -48,7 +48,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LOGIN (CON CAPTURA DE EMAIL Y AUTOCOMPLETADO) ---
+# --- FUNCIÓN DE VALIDACIÓN DE LÍMITE ---
+def validar_limite_email(email):
+    if not os.path.exists("database_emails.txt"):
+        return 0
+    with open("database_emails.txt", "r") as f:
+        lineas = f.readlines()
+        conteo = sum(1 for linea in lineas if email in linea)
+        return conteo
+
+# --- 2. LOGIN (CON LÍMITE DE REGISTRO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -60,12 +69,15 @@ if not st.session_state["auth"]:
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026":
                 if user_email and "@" in user_email:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    with open("database_emails.txt", "a") as f:
-                        f.write(f"{timestamp} | {user_email}\n")
-                    
-                    st.session_state["auth"] = True
-                    st.rerun()
+                    intentos = validar_limite_email(user_email)
+                    if intentos >= 2:
+                        st.error(f"🚫 El correo {user_email} ya ha alcanzado el límite máximo de 2 accesos.")
+                    else:
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        with open("database_emails.txt", "a") as f:
+                            f.write(f"{timestamp} | {user_email}\n")
+                        st.session_state["auth"] = True
+                        st.rerun()
                 else:
                     st.error("Por favor, introduce un correo electrónico válido.")
     st.stop()
@@ -91,7 +103,7 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            with st.spinner("🤖 AI Dubbing in progress... please wait"):
+            with st.spinner("🤖 AI Dubbing in progress... detecting language and translating"):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
                 chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
@@ -111,23 +123,24 @@ if up_file:
                     chunk.export("c.wav", format="wav")
                     with sr.AudioFile("c.wav") as src:
                         try:
-                            text = r.recognize_google(r.record(src), language="es-ES")
+                            # MODIFICACIÓN: Se elimina language="es-ES" para que Google detecte el idioma automáticamente
+                            audio_data = r.record(src)
+                            text = r.recognize_google(audio_data) # Detección automática
+                            
                             trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
                             asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(f"v{i}.mp3"))
                             final_audio += AudioSegment.from_file(f"v{i}.mp3")
                             os.remove(f"v{i}.mp3")
-                        except: continue
+                        except Exception as e:
+                            continue
                 
                 final_audio.export("result.mp3", format="mp3")
             
             st.balloons()
-            
             st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
-            
             with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
                 st.audio("result.mp3")
-            
             st.write("")
             with open("result.mp3", "rb") as f:
                 st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
@@ -136,18 +149,13 @@ if up_file:
         except Exception as e: 
             st.error(f"Error: {e}")
 
-# --- 5. SECCIÓN PARA MOSTRAR EMAILS (NUEVO) ---
+# --- 5. VISUALIZACIÓN DE REGISTROS ---
 st.write("---")
-with st.expander("📊 VIEW REGISTERED EMAILS (Admin Only)"):
+with st.expander("📊 Ver correos registrados"):
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
-            emails = f.readlines()
-            if emails:
-                for line in emails:
-                    st.text(line.strip())
-            else:
-                st.info("El archivo está vacío.")
+            st.text(f.read())
     else:
-        st.info("Aún no hay registros de emails.")
+        st.info("No hay correos registrados aún.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
