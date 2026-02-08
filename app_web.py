@@ -7,18 +7,19 @@ import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
 from datetime import datetime
-import pandas as pd  # Necesario para leer la nube
-import requests      # Necesario para escribir en la nube
+import pandas as pd
+import requests
 
-# --- CONFIGURACIÓN NUBE (REEMPLAZA ESTO) ---
-# 1. En Google Sheets: Archivo > Compartir > Publicar en la Web > CSV. Pega el link aquí:
-SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_COMO_CSV" 
-# 2. En Google Forms: El link de "formResponse" (mira mi explicación abajo):
+# --- CONFIGURACIÓN DE GOOGLE (RELLENAR ESTOS 3 DATOS) ---
+# 1. En tu Google Sheet: Archivo -> Compartir -> Publicar en la web -> Formato CSV. Copia el link aquí:
+SHEET_CSV_URL = "TU_URL_DE_GOOGLE_SHEETS_CSV" 
+# 2. El link de "formResponse" de tu Google Form vinculado a la hoja:
 FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
-# 3. El ID del campo de texto de tu formulario (ej: entry.1234567):
+# 3. El ID de la entrada del formulario (ej: entry.12345678):
 FORM_ENTRY_ID = "entry.XXXXXXXXX"
 
 # --- 1. CONFIGURATION & STYLE ---
+# Corregido: Usamos un string estándar para el icono para evitar el NameError de la imagen
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -67,19 +68,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- EMAIL LIMIT VALIDATION (AHORA EN LA NUBE) ---
+# --- EMAIL LIMIT VALIDATION (MODO NUBE) ---
 def check_email_limit(email):
     try:
+        # Lee la hoja de cálculo en la nube
         df = pd.read_csv(SHEET_CSV_URL)
-        # Cuenta ocurrencias del email en la hoja de Google
+        # Cuenta cuántas veces aparece el email en la hoja
         count = df.astype(str).apply(lambda x: x.str.contains(email, case=False)).any(axis=1).sum()
         return count
     except:
+        # Si la hoja está vacía o no es accesible, asumimos 0 intentos
         return 0
 
 def register_email_cloud(email):
     try:
-        # Envía el email al formulario vinculado a tu Google Sheet
+        # Registra el email en la nube enviándolo al Google Form silenciosamente
         payload = {FORM_ENTRY_ID: email}
         requests.post(FORM_URL, data=payload)
     except:
@@ -101,6 +104,7 @@ if not st.session_state["auth"]:
                     if attempts >= 2:
                         st.error(f"🚫 Access denied for {user_email}. Limit reached.")
                     else:
+                        # Registro en la nube
                         register_email_cloud(user_email)
                         st.session_state["auth"] = True
                         st.rerun()
@@ -206,10 +210,11 @@ if up_file:
         except Exception as e: 
             st.error(f"General Error: {e}")
 
-# --- 5. DATA LOG VIEW (DESDE LA NUBE) ---
+# --- 5. DATA LOG VIEW (MODIFICADO PARA NUBE) ---
 st.write("---")
-with st.expander("📊 View Registered Emails (Admin Only)"):
+with st.expander("📊 VIEW REGISTERED EMAILS (ADMIN ONLY)"):
     try:
+        # Intenta leer de la nube
         df_cloud = pd.read_csv(SHEET_CSV_URL)
         st.dataframe(df_cloud)
     except:
