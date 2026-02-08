@@ -25,7 +25,7 @@ def get_base64_logo(path):
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_data = get_base64_logo("logo.png")
+logo_data = get_base64_logo("logo2.png")
 
 st.markdown(f"""
     <style>
@@ -175,3 +175,4 @@ if up_file:
         st.error("Error loading file. Please ensure it is a valid MP3 or WAV.")
 
 st.markdown("<br><hr><center><small style='color:#475569;'>DIDAPOD PRO © 2026 | Enterprise Grade Security</small></center>", unsafe_allow_html=True)
+
