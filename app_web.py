@@ -6,6 +6,7 @@ import base64
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 from pydub import AudioSegment
+from datetime import datetime # Necesario para registrar la fecha y hora
 
 # --- 1. CONFIGURACIÓN Y ESTILO ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
@@ -47,24 +48,36 @@ st.markdown("""
         border: 1px solid white !important;
     }
     
-    h1, h2, h3, label, p, span { color: blue !important; }
+    h1, h2, h3, label, p, span { color: white !important; }
     
     /* Estilo del Spinner (las pelotitas) */
     .stSpinner > div { border-top-color: #7c3aed !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LOGIN (CON AUTOCOMPLETADO) ---
+# --- 2. LOGIN (CON CAPTURA DE EMAIL Y AUTOCOMPLETADO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
-        # Se agregan los valores por defecto en el parámetro 'value'
+        st.markdown("### 🔐 PANEL DE ACCESO")
+        # Campo para pedir el Email
+        user_email = st.text_input("Correo Electrónico")
+        # Campos de usuario y pass con el autocompletado solicitado
         u = st.text_input("User", value="admin")
         p = st.text_input("Pass", type="password", value="didactai2026")
+        
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026":
-                st.session_state["auth"] = True
-                st.rerun()
+                if user_email and "@" in user_email: # Validación básica de email
+                    # ALMACENAMIENTO: Guardar email y fecha en archivo de texto
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    with open("database_emails.txt", "a") as f:
+                        f.write(f"{timestamp} | {user_email}\n")
+                    
+                    st.session_state["auth"] = True
+                    st.rerun()
+                else:
+                    st.error("Por favor, introduce un correo electrónico válido.")
     st.stop()
 
 # --- 3. ENCABEZADO ---
@@ -88,7 +101,6 @@ if up_file:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            # Spinner animado (pelotitas) en lugar de mensajes de texto
             with st.spinner("🤖 AI Dubbing in progress... please wait"):
                 with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
                 audio = AudioSegment.from_file("temp.mp3")
@@ -136,4 +148,3 @@ if up_file:
             st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
