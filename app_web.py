@@ -12,8 +12,9 @@ import requests      # Para escribir en la nube
 
 # --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/export?format=csv&id=19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o&gid=0"
-FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
-FORM_ENTRY_ID = "entry.XXXXXXXXX"
+FORM_URL = "https://docs.google.com/forms/d/e/1REnm041d1Ocy5KgCM3iJ_gEdS4_mgyPT9GAIToqNYvU/formResponse"
+FORM_ENTRY_ID = "entry.1196760957"
+FORM_ENTRY_ID = "entry.2052846084"
 
 # --- 1. CONFIGURATION & STYLE ---
 # Cambio mínimo: Icono estándar para evitar el NameError que viste en la imagen
@@ -212,5 +213,6 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("Cloud database is currently empty or unreachable.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
