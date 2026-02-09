@@ -217,19 +217,99 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("Cloud database is currently empty or unreachable.")
 
 # >>> DEBUG: PANEL DE DIAGNÓSTICO (no altera tu flujo)
+# ==========================
+# 🛠️ CLOUD DEBUGGER (simple)
+# ==========================
+import io
+from datetime import datetime
+
 st.write("---")
-with st.expander("🛠️ Cloud Debugger (Email & Fecha)"):
-    st.caption("Este panel solo diagnostica. No cambia tu flujo de login ni de escritura.")
+with st.expander("🛠️ Cloud Debugger (por qué no graba email/fecha)"):
+    st.caption("Este panel NO cambia tu flujo. Solo diagnostica lectura del CSV y POST al Form.")
 
-    # Mostrar las constantes actuales
-    st.write("**SHEET_CSV_URL (actual):**")
+    # 1) Mostrar URLs actuales
+    st.write("**SHEET_CSV_URL (como está en tu código):**")
     st.code(SHEET_CSV_URL, language="text")
-    st.write("**FORM_URL (actual):**")
+    st.write("**FORM_URL:**")
     st.code(FORM_URL, language="text")
-    st.write("**FORM_ENTRY_ID (el único que usa tu función actual):**")
-    st.code(FORM_ENTRY_ID, language="text")
 
-    # Normalizar CSV URL (si viene con &amp;)
+    # 2) Normalizar &amp; -> & (solo para prueba de lectura)
     fixed_csv_url = SHEET_CSV_URL.replace("&amp;", "&")
     if "&amp;" in SHEET_CSV_URL:
+        st.warning("SHEET_CSV_URL contiene '&amp;'. Para probar lectura usaremos una copia con '&' (no cambia tu constante).")
+
+    # 3) Botón: Probar lectura CSV
+    if st.button("🔎 Probar lectura CSV"):
+        try:
+            resp = requests.get(fixed_csv_url, timeout=10)
+            st.write("HTTP status:", resp.status_code)
+            st.write("Content-Type:", resp.headers.get("Content-Type", ""))
+            if resp.status_code != 200:
+                st.error("No se pudo leer el CSV. Revisa permisos de la hoja (Compartir → Cualquiera con el enlace → Lector) y que el gid sea el de 'Respuestas de formulario 1'.")
+            else:
+                try:
+                    df = pd.read_csv(io.BytesIO(resp.content))
+                    st.success("CSV leído correctamente ✅")
+                    st.write("Columnas:", list(df.columns))
+                    st.write("Filas:", len(df))
+                    if not df.empty:
+                        st.dataframe(df.tail(10))
+                    else:
+                        st.info("La hoja está vacía (sin registros).")
+                except Exception as e:
+                    st.error(f"El contenido no parece CSV. ¿La URL usa '&' (no '&amp;')? Error: {e}")
+        except Exception as e:
+            st.error(f"Error de red leyendo CSV: {e}")
+
+    st.divider()
+
+    # 4) Prueba de POST al Form (email + fecha del sistema)
+    st.caption("Prueba de envío al Form con Email + Fecha (sin tocar tu función original).")
+    test_email = st.text_input("Email de prueba", value="prueba@example.com", key="dbg_email")
+    entry_email_id = st.text_input("Entry ID (Email)", value="entry.1196760957", key="dbg_eid1")
+    entry_date_id  = st.text_input("Entry ID (Fecha)", value="entry.2052846084", key="dbg_eid2")
+    date_fmt = st.selectbox("Formato de fecha", ["%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"], index=0, key="dbg_fmt")
+
+    if st.button("📝 Enviar POST de prueba (email + fecha)"):
+        try:
+            fecha_str = datetime.now().strftime(date_fmt)
+            payload = {
+                entry_email_id: test_email,
+                entry_date_id:  fecha_str
+            }
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "Mozilla/5.0 (Streamlit App)"
+            }
+            r = requests.post(FORM_URL, data=payload, headers=headers, timeout=10, allow_redirects=False)
+            st.write("POST status:", r.status_code)
+            if r.status_code in (200, 302):
+                st.success("El Form aceptó el POST ✅. Releyendo el CSV en 2 segundos…")
+                import time; time.sleep(2)
+                r2 = requests.get(fixed_csv_url, timeout=10)
+                if r2.status_code == 200:
+                    try:
+                        df2 = pd.read_csv(io.BytesIO(r2.content))
+                        st.write("Filas tras el POST:", len(df2))
+                        if not df2.empty:
+                            st.dataframe(df2.tail(10))
+                        else:
+                            st.info("Sigue vacío: verifica que el Form esté vinculado a ESTA hoja y a la pestaña cuyo gid usas.")
+                    except Exception as e:
+                        st.error(f"Relectura: no parece CSV. Verifica '&' en la URL. Error: {e}")
+                else:
+                    st.error(f"No se pudo re-leer el CSV (HTTP {r2.status_code}). Revisa permisos/gid.")
+            else:
+                st.error("El Form rechazó el POST. Revisa que FORM_URL termine en /formResponse y que los entry IDs sean correctos.")
+        except Exception as e:
+            st.error(f"Error enviando al Form: {e}")
+
+    st.info(
+        "Nota: en tu código original, 'FORM_ENTRY_ID' está declarado dos veces; la segunda pisó a la primera, "
+        "por eso tu función 'register_email_cloud' solo envía UN campo (no la fecha). "
+        "Este panel prueba el envío de ambos campos sin tocar tu flujo. "
+        "Cuando confirmes que funciona, te doy el parche mínimo (2-3 líneas) para que tu función también envíe fecha."
+    )
+
+
 
