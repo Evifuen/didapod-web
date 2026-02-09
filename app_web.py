@@ -11,7 +11,7 @@ import pandas as pd  # Para leer la nube
 import requests      # Para escribir en la nube
 
 # --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
-SHEET_CSV_URL = "19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o" 
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/export?format=csv&id=19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o&gid=0"
 FORM_URL = "https://docs.google.com/forms/d/e/TU_ID_FORM/formResponse"
 FORM_ENTRY_ID = "entry.XXXXXXXXX"
 
@@ -212,4 +212,5 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("Cloud database is currently empty or unreachable.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
