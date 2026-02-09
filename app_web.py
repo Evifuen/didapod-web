@@ -10,8 +10,12 @@ from datetime import datetime
 import pandas as pd  # Para leer la nube
 import requests      # Para escribir en la nube
 
+# >>> DEBUG: imports extra para diagnóstico
+import io
+import time
+
 # --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/export?format=csv&id=19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o&gid=984810558"
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/export?format=csv&amp;id=19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o&amp;gid=984810558"
 FORM_URL = "https://docs.google.com/forms/d/e/1REnm041d1Ocy5KgCM3iJ_gEdS4_mgyPT9GAIToqNYvU/formResponse"
 FORM_ENTRY_ID = "entry.1196760957"
 FORM_ENTRY_ID = "entry.2052846084"
@@ -109,7 +113,7 @@ if not st.session_state["auth"]:
 col_l, col_r = st.columns([1, 4])
 with col_l:
     if logo_data:
-        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
+        st.markdown(f'<img src="data;base64,{logo_data}', unsafe_allow_html=True)
     else:
         st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
 with col_r:
@@ -212,8 +216,20 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
     except:
         st.info("Cloud database is currently empty or unreachable.")
 
-st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+# >>> DEBUG: PANEL DE DIAGNÓSTICO (no altera tu flujo)
+st.write("---")
+with st.expander("🛠️ Cloud Debugger (Email & Fecha)"):
+    st.caption("Este panel solo diagnostica. No cambia tu flujo de login ni de escritura.")
 
+    # Mostrar las constantes actuales
+    st.write("**SHEET_CSV_URL (actual):**")
+    st.code(SHEET_CSV_URL, language="text")
+    st.write("**FORM_URL (actual):**")
+    st.code(FORM_URL, language="text")
+    st.write("**FORM_ENTRY_ID (el único que usa tu función actual):**")
+    st.code(FORM_ENTRY_ID, language="text")
 
-
+    # Normalizar CSV URL (si viene con &amp;)
+    fixed_csv_url = SHEET_CSV_URL.replace("&amp;", "&")
+    if "&amp;" in SHEET_CSV_URL:
 
