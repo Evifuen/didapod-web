@@ -18,7 +18,7 @@ except ImportError:
     ZoneInfo = None
 
 # --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/edit?gid=984810558#gid=984810558"
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRLceo0Pah9sBwimtjic9yURqKQ6_x7ms60Yigil8EboGoxVl7xCBtXJNeWR9ulbcFjXuUkgJ5g56tS/pub?output=csv"
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 
 # --- 1. CONFIGURATION & STYLE ---
@@ -241,6 +241,7 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info(f"Cloud database unreachable. Detalle: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
