@@ -232,16 +232,30 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
     try:
         url = SHEET_CSV_URL.replace("&amp;", "&")
         resp = requests.get(url, timeout=10)
+        
         if resp.status_code != 200:
             st.info(f"Cloud database unreachable. (HTTP {resp.status_code})")
         else:
             df_cloud = pd.read_csv(io.BytesIO(resp.content))
+
+            # --- CAMBIOS SOLICITADOS AQUÍ ---
+            # 1. Renombrar 'Marca temporal' a 'fecha'
+            if 'Marca temporal' in df_cloud.columns:
+                df_cloud = df_cloud.rename(columns={'Marca temporal': 'fecha'})
+
+            # 2. Eliminar la segunda columna llamada 'fecha' que está vacía
+            cols = pd.Series(df_cloud.columns)
+            for dupe in cols[cols.duplicated()].unique():
+                if dupe == 'fecha':
+                    # Mantiene solo la primera ocurrencia de la columna 'fecha'
+                    df_cloud = df_cloud.loc[:, ~df_cloud.columns.duplicated(keep='first')]
+
             st.dataframe(df_cloud)
+
     except Exception as e:
         st.info(f"Cloud database unreachable. Detalle: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
 
 
 
