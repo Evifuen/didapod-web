@@ -234,4 +234,3 @@ st.info(f"Cloud database unreachable. Detalle: {e}")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
-
