@@ -13,7 +13,7 @@ import re
 # ==========================================
 # BASE DE DATOS EN LA NUBE (APPS SCRIPT)
 # ==========================================
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwiGhFDni_zIWvYCW4JIvZmqwMsHCCyxOply1_zFMR2JUcd4gVkAsk3BI4odOvXk_MN/exec"  # <-- SOLO ESTE CAMPO DEBES CAMBIAR
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbUqyrHKND1oougAUdjNr944XDKlI8psAdlCUKDN_rJQzjcv46RdDTjkTuLIPxGn78YA/exec"  # <-- SOLO ESTE CAMPO DEBES CAMBIAR
 
 def register_email_cloud(email: str) -> bool:
     try:
@@ -84,3 +84,4 @@ if not st.session_state["auth"]:
     st.stop()
 
 # ... EL RESTO DE TU APP SIGUE IGUAL...
+
