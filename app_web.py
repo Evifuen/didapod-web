@@ -9,19 +9,22 @@ from pydub import AudioSegment
 from datetime import datetime
 import pandas as pd  # Para leer la nube
 import requests      # Para escribir en la nube
-
-# >>> DEBUG: imports extra para diagnóstico
 import io
-import time
+
+# Zona horaria (opcional si está disponible)
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except ImportError:
+    ZoneInfo = None
 
 # --- CONFIGURACIÓN DE NUBE (RELLENA ESTO) ---
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/export?format=csv&amp;id=19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o&amp;gid=984810558"
-FORM_URL = "https://docs.google.com/forms/d/e/1REnm041d1Ocy5KgCM3iJ_gEdS4_mgyPT9GAIToqNYvU/formResponse"
-FORM_ENTRY_ID = "entry.1196760957"
-FORM_ENTRY_ID = "entry.2052846084"
+# ⬇⬇⬇ URL CSV de la PESTAÑA donde escribe tu Apps Script (usa & normales, no &amp;)
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/19H6aHpni_PnqwZhIKg9MP1CvUmvb7HeX0T8OTSpV29o/edit?gid=984810558#gid=984810558"
+
+# ⬇⬇⬇ Tu Apps Script WebApp (termina en /exec)
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 
 # --- 1. CONFIGURATION & STYLE ---
-# Cambio mínimo: Icono estándar para evitar el NameError que viste en la imagen
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -34,55 +37,76 @@ def get_base64_logo(path):
 logo_data = get_base64_logo("logo2.png")
 
 st.markdown("""
-    <style>
-    .stApp { background-color: #0f172a !important; }
-    .stExpander { 
-        background-color: #7c3aed !important; 
-        border: 2px solid white !important; 
-        border-radius: 12px !important;
-    }
-    .stExpander summary, .stExpander summary * { 
-        color: #ffffff !important; 
-        font-weight: 800 !important; 
-        font-size: 19px !important;
-        text-transform: uppercase !important;
-    }
-    .stButton>button, .stDownloadButton>button { 
-        background-color: #7c3aed !important; 
-        color: white !important; 
-        border-radius: 12px !important; 
-        padding: 18px !important; 
-        font-weight: 800 !important; 
-        width: 100% !important; 
-        border: 1px solid white !important;
-    }
-    h1, h2, h3, label, p, span { color: white !important; }
-    .stSpinner > div { border-top-color: #7c3aed !important; }
-    .lang-tag {
-        background-color: #1e293b;
-        color: #7c3aed;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-        border: 1px solid #7c3aed;
-        font-size: 0.8rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.stApp { background-color: #0f172a !important; }
+.stExpander { 
+    background-color: #7c3aed !important; 
+    border: 2px solid white !important; 
+    border-radius: 12px !important;
+}
+.stExpander summary, .stExpander summary * { 
+    color: #ffffff !important; 
+    font-weight: 800 !important; 
+    font-size: 19px !important;
+    text-transform: uppercase !important;
+}
+.stButton>button, .stDownloadButton>button { 
+    background-color: #7c3aed !important; 
+    color: white !important; 
+    border-radius: 12px !important; 
+    padding: 18px !important; 
+    font-weight: 800 !important; 
+    width: 100% !important; 
+    border: 1px solid white !important;
+}
+h1, h2, h3, label, p, span { color: white !important; }
+.stSpinner > div { border-top-color: #7c3aed !important; }
+.lang-tag {
+    background-color: #1e293b;
+    color: #7c3aed;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    border: 1px solid #7c3aed;
+    font-size: 0.8rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --- CAMBIO AQUÍ: VALIDACIÓN EN LA NUBE ---
 def check_email_limit(email):
+    """
+    Cuenta cuántas veces aparece el email en la hoja (CSV publicado).
+    Robusto ante URL pegada con &amp; por error.
+    """
     try:
-        df = pd.read_csv(SHEET_CSV_URL)
-        count = df.astype(str).apply(lambda x: x.str.contains(email, case=False)).any(axis=1).sum()
-        return count
-    except:
+        url = SHEET_CSV_URL.replace("&amp;", "&")  # por si la pegaste desde HTML
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            return 0
+        df = pd.read_csv(io.BytesIO(resp.content))
+        count = df.astype(str).apply(lambda x: x.str.contains(email, case=False, na=False)).any(axis=1).sum()
+        return int(count)
+    except Exception:
         return 0
 
 def register_email_cloud(email):
+    """
+    Escríbe email + fecha del sistema (Caracas) en tu Google Sheet
+    a través del Apps Script WebApp (POST JSON).
+    """
     try:
-        requests.post(FORM_URL, data={FORM_ENTRY_ID: email})
+        now_local = datetime.now(ZoneInfo("America/Caracas")) if ZoneInfo else datetime.now()
+        fecha_str = now_local.strftime("%d-%m-%Y %H:%M:%S")  # dd-MM-YYYY HH:mm:ss
+
+        payload = {"email": email, "fecha": fecha_str}
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Streamlit App"
+        }
+        requests.post(APPS_SCRIPT_URL, json=payload, headers=headers, timeout=10)
     except:
+        # Mantengo el pass para no romper tu flujo si falla (como tu original)
         pass
 
 # --- 2. LOGIN ---
@@ -101,7 +125,7 @@ if not st.session_state["auth"]:
                     if attempts >= 2:
                         st.error(f"🚫 Access denied for {user_email}. Limit reached.")
                     else:
-                        # Registro en la nube
+                        # Registro en la nube (Apps Script)
                         register_email_cloud(user_email)
                         st.session_state["auth"] = True
                         st.rerun()
@@ -109,11 +133,12 @@ if not st.session_state["auth"]:
                     st.error("Please enter a valid email address.")
     st.stop()
 
-# --- 3. HEADER (INTACTO) ---
+# --- 3. HEADER (con HTML correcto) ---
 col_l, col_r = st.columns([1, 4])
 with col_l:
     if logo_data:
-        st.markdown(f'<img src="data;base64,{logo_data}', unsafe_allow_html=True)
+        st.markdown(
+            f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius: )
     else:
         st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
 with col_r:
@@ -177,7 +202,10 @@ if up_file:
                                 trans = translator.translate(text)
                                 detected_lang = translator.source.upper()
                                 
-                                lang_label.markdown(f'<div style="text-align:right;"><span class="lang-tag">Detected: {detected_lang}</span></div>', unsafe_allow_html=True)
+                                lang_label.markdown(
+                                    f'<div style="text-align:right;"><span class="lang-tag">Detected: {detected_lang}</span></div>',
+                                    unsafe_allow_html=True
+                                )
 
                                 voice_path = f"v_{i}.mp3"
                                 asyncio.run(edge_tts.Communicate(trans, selected_voice).save(voice_path))
@@ -211,104 +239,20 @@ if up_file:
 st.write("---")
 with st.expander("📊 View Registered Emails (Admin Only)"):
     try:
-        df_cloud = pd.read_csv(SHEET_CSV_URL)
-        st.dataframe(df_cloud)
-    except:
-        st.info("Cloud database is currently empty or unreachable.")
-
-# >>> DEBUG: PANEL DE DIAGNÓSTICO (no altera tu flujo)
-# ==========================
-# 🛠️ CLOUD DEBUGGER (simple)
-# ==========================
-import io
-from datetime import datetime
-
-st.write("---")
-with st.expander("🛠️ Cloud Debugger (por qué no graba email/fecha)"):
-    st.caption("Este panel NO cambia tu flujo. Solo diagnostica lectura del CSV y POST al Form.")
-
-    # 1) Mostrar URLs actuales
-    st.write("**SHEET_CSV_URL (como está en tu código):**")
-    st.code(SHEET_CSV_URL, language="text")
-    st.write("**FORM_URL:**")
-    st.code(FORM_URL, language="text")
-
-    # 2) Normalizar &amp; -> & (solo para prueba de lectura)
-    fixed_csv_url = SHEET_CSV_URL.replace("&amp;", "&")
-    if "&amp;" in SHEET_CSV_URL:
-        st.warning("SHEET_CSV_URL contiene '&amp;'. Para probar lectura usaremos una copia con '&' (no cambia tu constante).")
-
-    # 3) Botón: Probar lectura CSV
-    if st.button("🔎 Probar lectura CSV"):
-        try:
-            resp = requests.get(fixed_csv_url, timeout=10)
-            st.write("HTTP status:", resp.status_code)
-            st.write("Content-Type:", resp.headers.get("Content-Type", ""))
-            if resp.status_code != 200:
-                st.error("No se pudo leer el CSV. Revisa permisos de la hoja (Compartir → Cualquiera con el enlace → Lector) y que el gid sea el de 'Respuestas de formulario 1'.")
+        url = SHEET_CSV_URL.replace("&amp;", "&")
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            st.info(f"Cloud database is currently empty or unreachable. (HTTP {resp.status_code})")
+        else:
+            df_cloud = pd.read_csv(io.BytesIO(resp.content))
+            if df_cloud.empty:
+                st.info("La hoja está vacía (sin registros).")
             else:
-                try:
-                    df = pd.read_csv(io.BytesIO(resp.content))
-                    st.success("CSV leído correctamente ✅")
-                    st.write("Columnas:", list(df.columns))
-                    st.write("Filas:", len(df))
-                    if not df.empty:
-                        st.dataframe(df.tail(10))
-                    else:
-                        st.info("La hoja está vacía (sin registros).")
-                except Exception as e:
-                    st.error(f"El contenido no parece CSV. ¿La URL usa '&' (no '&amp;')? Error: {e}")
-        except Exception as e:
-            st.error(f"Error de red leyendo CSV: {e}")
+                st.dataframe(df_cloud)
+    except Exception as e:
+        st.info(f"Cloud database is currently empty or unreachable. Detalle: {e}")
 
-    st.divider()
+st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
-    # 4) Prueba de POST al Form (email + fecha del sistema)
-    st.caption("Prueba de envío al Form con Email + Fecha (sin tocar tu función original).")
-    test_email = st.text_input("Email de prueba", value="prueba@example.com", key="dbg_email")
-    entry_email_id = st.text_input("Entry ID (Email)", value="entry.1196760957", key="dbg_eid1")
-    entry_date_id  = st.text_input("Entry ID (Fecha)", value="entry.2052846084", key="dbg_eid2")
-    date_fmt = st.selectbox("Formato de fecha", ["%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"], index=0, key="dbg_fmt")
-
-    if st.button("📝 Enviar POST de prueba (email + fecha)"):
-        try:
-            fecha_str = datetime.now().strftime(date_fmt)
-            payload = {
-                entry_email_id: test_email,
-                entry_date_id:  fecha_str
-            }
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "Mozilla/5.0 (Streamlit App)"
-            }
-            r = requests.post(FORM_URL, data=payload, headers=headers, timeout=10, allow_redirects=False)
-            st.write("POST status:", r.status_code)
-            if r.status_code in (200, 302):
-                st.success("El Form aceptó el POST ✅. Releyendo el CSV en 2 segundos…")
-                import time; time.sleep(2)
-                r2 = requests.get(fixed_csv_url, timeout=10)
-                if r2.status_code == 200:
-                    try:
-                        df2 = pd.read_csv(io.BytesIO(r2.content))
-                        st.write("Filas tras el POST:", len(df2))
-                        if not df2.empty:
-                            st.dataframe(df2.tail(10))
-                        else:
-                            st.info("Sigue vacío: verifica que el Form esté vinculado a ESTA hoja y a la pestaña cuyo gid usas.")
-                    except Exception as e:
-                        st.error(f"Relectura: no parece CSV. Verifica '&' en la URL. Error: {e}")
-                else:
-                    st.error(f"No se pudo re-leer el CSV (HTTP {r2.status_code}). Revisa permisos/gid.")
-            else:
-                st.error("El Form rechazó el POST. Revisa que FORM_URL termine en /formResponse y que los entry IDs sean correctos.")
-        except Exception as e:
-            st.error(f"Error enviando al Form: {e}")
-
-    st.info(
-        "Nota: en tu código original, 'FORM_ENTRY_ID' está declarado dos veces; la segunda pisó a la primera, "
-        "por eso tu función 'register_email_cloud' solo envía UN campo (no la fecha). "
-        "Este panel prueba el envío de ambos campos sin tocar tu flujo. "
-        "Cuando confirmes que funciona, te doy el parche mínimo (2-3 líneas) para que tu función también envíe fecha."
-    )
 
 
