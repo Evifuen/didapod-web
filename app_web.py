@@ -1,13 +1,10 @@
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
 import os, base64, requests, io
-import pandas as pd
-from datetime import datetime
 
-# --- PAGE CONFIG ---
+# --- 1. PAGE CONFIG & STYLE (LOOK PROFESIONAL) ---
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
-# --- STYLING (The Purple Look) ---
 st.markdown("""
 <style>
 .stApp { background-color: #0f172a !important; }
@@ -22,46 +19,50 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIN SYSTEM ---
+# --- 2. SECRET CLEANER ENGINE (SOLUCIÓN AL ERROR 5) ---
+# Esta función elimina saltos de línea y espacios invisibles de tu llave larga
+def clean_secret(secret_key):
+    if secret_key:
+        return "".join(secret_key.split())
+    return ""
+
+raw_azure_key = st.secrets.get("AZURE_SPEECH_KEY", "")
+AZ_KEY = clean_secret(raw_azure_key)
+AZ_REG = clean_secret(st.secrets.get("AZURE_SPEECH_REGION", "eastus"))
+
+# --- 3. LOGIN SYSTEM (ENGLISH INTERFACE) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("### 🔐 ACCESS PANEL")
+        st.markdown("### 🔐 DIDAPOD ACCESS")
         email = st.text_input("Corporate Email")
-        u = st.text_input("User", value="admin")
+        u = st.text_input("Username", value="admin")
         p = st.text_input("Password", type="password", value="didactai2026")
-        if st.form_submit_button("LOGIN"):
+        if st.form_submit_button("LOGIN TO PLATFORM"):
             if u == "admin" and p == "didactai2026" and "@" in email:
                 st.session_state["auth"] = True
                 st.rerun()
-            else: st.error("Access Denied.")
+            else: st.error("Access Denied. Invalid credentials.")
     st.stop()
 
-# --- THE MAGIC FIX FOR LONG KEYS ---
-# This line grabs your key and removes ALL hidden spaces or line breaks
-raw_key = st.secrets.get("AZURE_SPEECH_KEY", "")
-AZ_KEY = "".join(raw_key.split()) # This "glues" the broken lines together
-AZ_REG = st.secrets.get("AZURE_SPEECH_REGION", "eastus").strip()
-
-# --- MAIN INTERFACE ---
+# --- 4. MAIN INTERFACE (ENGLISH) ---
 st.title("🎙️ DIDAPOD PRO")
-st.write("Professional AI Dubbing Engine")
+st.write("Enterprise AI Dubbing Engine")
 
 c1, c2 = st.columns(2)
 with c1: lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with c2: gen = st.selectbox("Voice Gender:", ["Female", "Male"])
 
-up = st.file_uploader("Upload Audio", type=["mp3", "wav"])
+up = st.file_uploader("Upload Audio File", type=["mp3", "wav"])
 
 if up and AZ_KEY:
     st.audio(up)
     if st.button("🚀 START AI DUBBING PROCESS"):
         try:
-            with st.spinner("Processing with Azure AI..."):
-                # Save temp file
+            with st.spinner("🤖 Azure AI is processing your audio..."):
                 with open("temp.wav", "wb") as f: f.write(up.getbuffer())
 
-                # Azure Configuration
+                # Azure Translation Config
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[lang])
@@ -87,13 +88,14 @@ if up and AZ_KEY:
                     syn.speak_text_async(res.translations[l_map[lang]]).get()
 
                     st.balloons()
-                    st.success("Dubbing Finished!")
+                    st.success("Dubbing Completed Successfully!")
                     st.audio(out_f)
                     with open(out_f, "rb") as f:
-                        st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
+                        st.download_button("📥 DOWNLOAD DUBBED AUDIO", f, "didapod_result.mp3")
                 else:
-                    st.error("Azure Error: Could not recognize speech. Check key formatting.")
+                    st.error(f"Azure Error: {res.reason}. Please check your Secret Key format.")
         except Exception as e:
             st.error(f"Connection Failed: {e}")
 
-st.markdown("<br><hr><center><small>© 2026 DidactAI</small></center>", unsafe_allow_html=True)
+st.markdown("<br><hr><center><small>© 2026 DidactAI-US | AI Solutions</small></center>", unsafe_allow_html=True)
+
