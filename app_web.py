@@ -2,7 +2,7 @@ import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
 import os, base64, requests, io
 
-# --- 1. PAGE CONFIG ---
+# --- 1. PAGE CONFIG & STYLE ---
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
 st.markdown("""
@@ -19,52 +19,52 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. THE ULTIMATE CLEANER ---
-def get_clean_secret(name):
-    raw_val = st.secrets.get(name, "")
-    # Eliminamos espacios, saltos de línea y cualquier tipo de comilla accidental
-    clean_val = "".join(raw_val.split()).replace('"', '').replace("'", "").strip()
-    return clean_val
+# --- 2. SECRET CLEANER ENGINE ---
+# Esta función es la que "pega" tu llave si Streamlit la divide por ser larga
+def clean_secret(secret_key):
+    if secret_key:
+        return "".join(secret_key.split())
+    return ""
 
-AZ_KEY = get_clean_secret("AZURE_KEY")
-AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
+# Cargamos AZURE_KEY como pediste
+raw_azure_key = st.secrets.get("AZURE_KEY", "")
+AZ_KEY = clean_secret(raw_azure_key)
+AZ_REG = clean_secret(st.secrets.get("AZURE_SPEECH_REGION", "eastus"))
 
-# --- 3. LOGIN ---
+# --- 3. LOGIN SYSTEM (English Interface) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
         st.markdown("### 🔐 DIDAPOD ACCESS")
+        email = st.text_input("Corporate Email")
         u = st.text_input("Username", value="admin")
         p = st.text_input("Password", type="password", value="didactai2026")
-        if st.form_submit_button("LOGIN"):
-            if u == "admin" and p == "didactai2026":
+        if st.form_submit_button("LOGIN TO PLATFORM"):
+            if u == "admin" and p == "didactai2026" and "@" in email:
                 st.session_state["auth"] = True
                 st.rerun()
-            else: st.error("Access Denied.")
+            else: st.error("Access Denied. Invalid credentials.")
     st.stop()
 
-# --- 4. APP INTERFACE ---
+# --- 4. MAIN INTERFACE (English) ---
 st.title("🎙️ DIDAPOD PRO")
-st.write("Professional AI Dubbing Engine")
-
-# Pequeño diagnóstico para ti (se puede borrar luego)
-if not AZ_KEY:
-    st.warning("⚠️ AZURE_KEY not found in Secrets!")
+st.write("Professional AI Dubbing System")
 
 c1, c2 = st.columns(2)
 with c1: lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with c2: gen = st.selectbox("Voice Gender:", ["Female", "Male"])
 
-up = st.file_uploader("Upload Audio", type=["mp3", "wav"])
+up = st.file_uploader("Upload Audio File", type=["mp3", "wav"])
 
 if up and AZ_KEY:
     st.audio(up)
     if st.button("🚀 START AI DUBBING PROCESS"):
         try:
-            with st.spinner("🤖 Connecting to Azure AI..."):
+            with st.spinner("🤖 AI is processing your audio..."):
+                # Guardar archivo temporal
                 with open("temp.wav", "wb") as f: f.write(up.getbuffer())
 
-                # Configuración de Azure
+                # Configuración de Traducción de Azure
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[lang])
@@ -74,7 +74,7 @@ if up and AZ_KEY:
                 res = reco.recognize_once_async().get()
 
                 if res.reason == speechsdk.ResultReason.TranslatedSpeech:
-                    # Síntesis
+                    # Síntesis de voz del texto traducido
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     v_db = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -90,15 +90,14 @@ if up and AZ_KEY:
                     syn.speak_text_async(res.translations[l_map[lang]]).get()
 
                     st.balloons()
-                    st.success("Success!")
+                    st.success("Dubbing Finished!")
                     st.audio(out_f)
                     with open(out_f, "rb") as f:
-                        st.download_button("📥 DOWNLOAD", f, "result.mp3")
+                        st.download_button("📥 DOWNLOAD DUBBED AUDIO", f, "didapod_result.mp3")
                 else:
-                    # Si falla, mostramos el error detallado de Azure
-                    st.error(f"Azure Rejected Access. Reason: {res.reason}")
-                    st.info("Tip: If you see 'AuthenticationFailure', your Key might be expired or copied incorrectly.")
+                    st.error("Azure Error: Authentication failed. Please verify your AZURE_KEY.")
         except Exception as e:
-            st.error(f"System Error: {e}")
+            # Mensaje genérico de fallo de conexión en inglés
+            st.error(f"Connection Failed: {e}")
 
-st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+st.markdown("<br><hr><center><small>© 2026 DidactAI-US | Premium AI Dubbing</small></center>", unsafe_allow_html=True)
