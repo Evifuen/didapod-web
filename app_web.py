@@ -1,139 +1,162 @@
 import streamlit as st
-import azure.cognitiveservices.speech as speechsdk
-import os, requests, io, time
-from datetime import datetime
+import edge_tts
+import asyncio
+import os
+import base64
+import speech_recognition as sr
+from deep_translator import GoogleTranslator
 from pydub import AudioSegment
+from datetime import datetime
 
-# --- 1. CONFIG & STYLE ---
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
-st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
+# --- 1. CONFIGURACIÓN Y ESTILO ---
+st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
+
+def get_base64_logo(path):
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            data = f.read()
+            return base64.b64encode(data).decode()
+    return None
+
+logo_data = get_base64_logo("logo2.png")
 
 st.markdown("""
-<style>
-.stApp { background-color: #0f172a !important; }
-.stButton>button {
-    background-color: #7c3aed !important;
-    color: white !important;
-    border-radius: 12px !important;
-    padding: 18px !important;
-    font-weight: 800 !important;
-    width: 100% !important;
-}
-h1, h2, h3, label, p, span { color: white !important; }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+    .stApp { background-color: #0f172a !important; }
+    .stExpander { 
+        background-color: #7c3aed !important; 
+        border: 2px solid white !important; 
+        border-radius: 12px !important;
+    }
+    .stExpander summary, .stExpander summary * { 
+        color: #ffffff !important; 
+        font-weight: 800 !important; 
+        font-size: 19px !important;
+        text-transform: uppercase !important;
+    }
+    .stButton>button, .stDownloadButton>button { 
+        background-color: #7c3aed !important; 
+        color: white !important; 
+        border-radius: 12px !important; 
+        padding: 18px !important; 
+        font-weight: 800 !important; 
+        width: 100% !important; 
+        border: 1px solid white !important;
+    }
+    h1, h2, h3, label, p, span { color: white !important; }
+    .stSpinner > div { border-top-color: #7c3aed !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-def get_clean_secret(name):
-    val = st.secrets.get(name, "")
-    return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
+# --- FUNCIÓN DE VALIDACIÓN DE LÍMITE ---
+def validar_limite_email(email):
+    if not os.path.exists("database_emails.txt"):
+        return 0
+    with open("database_emails.txt", "r") as f:
+        lineas = f.readlines()
+        conteo = sum(1 for linea in lineas if email in linea)
+        return conteo
 
-AZ_KEY = get_clean_secret("AZURE_KEY")
-AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
-
-# --- 2. LOGIN & SHEETS ---
+# --- 2. LOGIN (CON LÍMITE DE REGISTRO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
-        st.markdown("<h2 style='text-align: center;'>🎙️ DIDAPOD ACCESS</h2>", unsafe_allow_html=True)
-        user_email = st.text_input("Corporate Email")
-        u = st.text_input("Username", value="admin")
-        p = st.text_input("Password", type="password", value="didactai2026")
-        if st.form_submit_button("LOGIN"):
-            if u == "admin" and p == "didactai2026" and "@" in user_email:
-                try: requests.post(APPS_SCRIPT_URL, json={"email": user_email, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                except: pass
-                st.session_state["auth"] = True
-                st.session_state["user_email"] = user_email
-                st.rerun()
-            else: st.error("Access Denied.")
+        st.markdown("### 🔐 PANEL DE ACCESO")
+        user_email = st.text_input("Correo Electrónico")
+        u = st.text_input("User", value="admin")
+        p = st.text_input("Pass", type="password", value="didactai2026")
+        
+        if st.form_submit_button("Login"):
+            if u == "admin" and p == "didactai2026":
+                if user_email and "@" in user_email:
+                    intentos = validar_limite_email(user_email)
+                    if intentos >= 2:
+                        st.error(f"🚫 El correo {user_email} ya ha alcanzado el límite máximo de 2 accesos.")
+                    else:
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        with open("database_emails.txt", "a") as f:
+                            f.write(f"{timestamp} | {user_email}\n")
+                        st.session_state["auth"] = True
+                        st.rerun()
+                else:
+                    st.error("Por favor, introduce un correo electrónico válido.")
     st.stop()
 
-# --- 3. DUBBING ENGINE (PHYSICAL FILE VERSION) ---
-st.title("🎙️ DIDAPOD PRO")
-col1, col2 = st.columns(2)
-with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
-with col2: voice_gender = st.selectbox("Voice Gender:", ["Female", "Male"])
+# --- 3. ENCABEZADO ---
+col_l, col_r = st.columns([1, 4])
+with col_l:
+    if logo_data:
+        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
+    else:
+        st.markdown("<h1 style='margin:0;'>🎙️</h1>", unsafe_allow_html=True)
+with col_r:
+    st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4a"])
+st.write("---")
 
-if uploaded_file and AZ_KEY:
-    st.audio(uploaded_file)
+# --- 4. PROCESAMIENTO ---
+target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
+up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
+
+if up_file:
+    st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
-        all_text = []
-        # Objeto de control simple para evitar errores de sintaxis
-        control = {"is_done": False}
-
         try:
-            with st.spinner("🤖 Normalizing audio and translating..."):
-                # PASO 1: CONVERSIÓN FÍSICA A WAV (Aquí está la clave)
-                audio = AudioSegment.from_file(uploaded_file)
-                audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-                temp_wav = "temp_audio_file.wav"
-                audio.export(temp_wav, format="wav")
-
-                # PASO 2: CONFIGURACIÓN AZURE
-                t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
-                l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                t_cfg.add_target_language(l_map[target_lang])
+            with st.spinner("🤖 AI Dubbing in progress... detecting language and translating"):
+                with open("temp.mp3", "wb") as f: f.write(up_file.getbuffer())
+                audio = AudioSegment.from_file("temp.mp3")
+                chunks = [audio[i:i + 40000] for i in range(0, len(audio), 40000)]
                 
-                # Le decimos a Azure que lea del archivo que acabamos de crear
-                audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
-                recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
-
-                # PASO 3: GESTIÓN DE EVENTOS (Nombres oficiales de la librería)
-                def on_recognized(evt):
-                    if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        translation = evt.result.translations.get(l_map[target_lang], "")
-                        if translation:
-                            all_text.append(translation)
-
-                def on_finished(evt):
-                    control["is_done"] = True
-
-                # Conexión limpia de eventos
-                recognizer.recognized.connect(on_recognized)
-                recognizer.session_stopped.connect(on_finished)
-                recognizer.canceled.connect(on_finished)
-
-                # Iniciar proceso
-                recognizer.start_continuous_recognition_async()
+                final_audio = AudioSegment.empty()
+                r = sr.Recognizer()
                 
-                # Espera activa controlada
-                while not control["is_done"]:
-                    time.sleep(0.5)
+                codes = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
+                voice_m = {
+                    "English": "en-US-EmmaMultilingualNeural", 
+                    "Spanish": "es-ES-ElviraNeural", 
+                    "French": "fr-FR-DeniseNeural",
+                    "Portuguese": "pt-BR-FranciscaNeural"
+                }
+
+                for i, chunk in enumerate(chunks):
+                    chunk.export("c.wav", format="wav")
+                    with sr.AudioFile("c.wav") as src:
+                        try:
+                            # MODIFICACIÓN: Se elimina language="es-ES" para que Google detecte el idioma automáticamente
+                            audio_data = r.record(src)
+                            text = r.recognize_google(audio_data) # Detección automática
+                            
+                            trans = GoogleTranslator(source='auto', target=codes[target_lang]).translate(text)
+                            asyncio.run(edge_tts.Communicate(trans, voice_m[target_lang]).save(f"v{i}.mp3"))
+                            final_audio += AudioSegment.from_file(f"v{i}.mp3")
+                            os.remove(f"v{i}.mp3")
+                        except Exception as e:
+                            continue
                 
-                recognizer.stop_continuous_recognition_async()
+                final_audio.export("result.mp3", format="mp3")
+            
+            st.balloons()
+            st.markdown("<div style='background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; border: 1px solid #7c3aed;'>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center;'>✅ PODCAST READY</h3>", unsafe_allow_html=True)
+            with st.expander("▶️ CLICK HERE TO LISTEN BEFORE DOWNLOADING"):
+                st.audio("result.mp3")
+            st.write("")
+            with open("result.mp3", "rb") as f:
+                st.download_button("📥 DOWNLOAD FINAL FILE", f, "didapod_result.mp3")
+            st.markdown("</div>", unsafe_allow_html=True)
 
-                # PASO 4: GENERAR AUDIO FINAL
-                full_script = " ".join(all_text)
+        except Exception as e: 
+            st.error(f"Error: {e}")
 
-                if full_script:
-                    s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
-                    voices = {
-                        "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
-                        "Spanish": {"Female": "es-ES-ElviraNeural", "Male": "es-ES-AlvaroNeural"},
-                        "French": {"Female": "fr-FR-DeniseNeural", "Male": "fr-FR-HenriNeural"},
-                        "Portuguese": {"Female": "pt-BR-FranciscaNeural", "Male": "pt-BR-AntonioNeural"}
-                    }
-                    s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
-                    
-                    final_mp3 = "dubbed_podcast.mp3"
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_mp3)
-                    syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
-                    syn.speak_text_async(full_script).get()
+# --- 5. VISUALIZACIÓN DE REGISTROS ---
+st.write("---")
+with st.expander("📊 Ver correos registrados"):
+    if os.path.exists("database_emails.txt"):
+        with open("database_emails.txt", "r") as f:
+            st.text(f.read())
+    else:
+        st.info("No hay correos registrados aún.")
 
-                    st.balloons()
-                    st.success("✅ Success! Dubbing complete.")
-                    st.audio(final_mp3)
-                    with open(final_mp3, "rb") as f:
-                        st.download_button("📥 DOWNLOAD DUBBED PODCAST", f, "didapod_result.mp3")
-                    
-                    # Limpieza del servidor
-                    if os.path.exists(temp_wav): os.remove(temp_wav)
-                else:
-                    st.error("Azure couldn't find speech segments. Please check audio volume.")
+st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
-        except Exception as e:
-            st.error(f"System Error: {e}")
-
-st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
