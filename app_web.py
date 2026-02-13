@@ -48,7 +48,7 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 4. PROCESO DE DOBLAJE ---
+# --- 4. INTERFAZ Y LÓGICA DE DOBLAJE ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -59,20 +59,21 @@ uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START FULL DUBBING PROCESS"):
-        # DEFINIMOS done AQUÍ AFUERA PARA QUE LAS FUNCIONES LO VEAN
-        done = False
+        # Variables de estado para el reconocimiento continuo
+        # Las definimos aquí para evitar el SyntaxError de tus imágenes
         all_text = []
-        
+        state = {"done": False} 
+
         try:
-            with st.spinner("🤖 Processing entire audio... this may take a moment."):
-                # Conversión WAV
+            with st.spinner("🤖 Processing entire audio... Please wait."):
+                # Conversión WAV (Garantiza que Azure no dé error de Header)
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # Config Azure
+                # Config Azure Translation
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
@@ -87,27 +88,27 @@ if uploaded_file and AZ_KEY:
                     auto_detect_source_language_config=auto_config
                 )
 
-                # FUNCIONES DE CONTROL
+                # Funciones de control de eventos
                 def stop_handle(evt):
-                    nonlocal done
-                    done = True
+                    state["done"] = True
 
                 def translated_handle(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations[l_map[target_lang]]
+                        txt = evt.result.translations.get(l_map[target_lang], "")
                         if txt: all_text.append(txt)
 
+                # Conectar eventos
                 recognizer.translated.connect(translated_handle)
                 recognizer.session_stopped.connect(stop_handle)
                 recognizer.canceled.connect(stop_handle)
 
-                # Ejecutar Reconocimiento Continuo
+                # Iniciar traducción continua (Para podcasts largos)
                 recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
 
-                # Esperar hasta que termine
-                while not done:
+                # Esperar a que termine de procesar el archivo
+                while not state["done"]:
                     time.sleep(0.5)
                 
                 recognizer.stop_continuous_recognition_async()
@@ -115,7 +116,7 @@ if uploaded_file and AZ_KEY:
                 full_script = " ".join(all_text)
 
                 if full_script:
-                    # SÍNTESIS DE VOZ
+                    # Generar Audio de Salida (Doblaje)
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -125,19 +126,19 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    out_f = "final_dub.mp3"
+                    out_f = "final_podcast_dub.mp3"
                     audio_out = speechsdk.audio.AudioOutputConfig(filename=out_f)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Full Dubbing Success!")
+                    st.success("✅ Full Podcast Dubbed!")
                     st.audio(out_f)
                     with open(out_f, "rb") as f:
                         st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
                 else:
-                    st.error("No speech detected.")
+                    st.error("No speech detected. Try a clearer audio.")
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"System Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
