@@ -53,10 +53,9 @@ if not st.session_state["auth"]:
         if st.form_submit_button("Login"):
             if u == "admin" and p == "didactai2026" and "@" in user_email:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                # REGISTRO EN GOOGLE SHEETS
                 try:
-                    requests.post(APPS_SCRIPT_URL, json={"email": user_email, "timestamp": timestamp})
-                    # También guardamos local por respaldo
+                    # Envío asíncrono simulado (timeout corto para no trabar el login)
+                    requests.post(APPS_SCRIPT_URL, json={"email": user_email, "timestamp": timestamp}, timeout=1)
                     with open("database_emails.txt", "a") as f:
                         f.write(f"{timestamp} | {user_email}\n")
                 except: pass
@@ -72,9 +71,9 @@ with col_l:
         st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
 with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Long Audio Enterprise Support</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Fast Long Audio Support</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR ORIGINAL (SIN TOCAR LÓGICA) ---
+# --- 4. MOTOR OPTIMIZADO EN RESPUESTA ---
 target_lang = st.selectbox("Idioma Destino:", ["English", "Spanish", "French", "Portuguese"])
 voice_gender = st.selectbox("Género de Voz:", ["Female", "Male"])
 up_file = st.file_uploader("Sube tu podcast", type=["mp3", "wav"])
@@ -86,12 +85,11 @@ if up_file and AZ_KEY:
         state = {"done": False}
         
         try:
-            with st.spinner(f"⌛ Procesando {up_file.name} (22+ min). Esto puede tardar..."):
-                # 1. Preparar audio largo
+            with st.spinner(f"⌛ Procesando {up_file.name}..."):
+                # 1. Preparar audio (Conversión más rápida)
                 audio = AudioSegment.from_file(up_file)
-                audio = audio.set_frame_rate(16000).set_channels(1)
                 temp_wav = "temp_long.wav"
-                audio.export(temp_wav, format="wav")
+                audio.set_frame_rate(16000).set_channels(1).export(temp_wav, format="wav", bitrate="256k")
 
                 # 2. Configuración de Azure
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
@@ -99,7 +97,8 @@ if up_file and AZ_KEY:
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
-                t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "5000")
+                # Optimización de silencios para no perder tiempo
+                t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "3000")
 
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
@@ -117,19 +116,20 @@ if up_file and AZ_KEY:
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
 
-                # 4. Iniciar proceso continuo
+                # 4. Proceso continuo
                 recognizer.start_continuous_recognition_async()
                 
                 progress_bar = st.progress(0)
+                # OPTIMIZACIÓN: Bucle de respuesta rápida (0.1s en vez de 1.0s)
                 while not state["done"]:
-                    time.sleep(1)
-                    # Progreso visual basado en fragmentos detectados
-                    progress_bar.progress(min(len(all_text) * 2, 99)) 
+                    time.sleep(0.1) 
+                    current_progress = min(len(all_text) * 2, 99)
+                    progress_bar.progress(current_progress)
                 
                 recognizer.stop_continuous_recognition_async()
                 progress_bar.progress(100)
 
-                # 5. Unir y Generar Audio Final
+                # 5. Generar Audio Final
                 full_script = " ".join(all_text).strip()
                 if full_script:
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
@@ -146,26 +146,23 @@ if up_file and AZ_KEY:
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Doblaje completado con éxito.")
+                    st.success("✅ Completado.")
                     st.audio(final_mp3)
                     with open(final_mp3, "rb") as f:
-                        st.download_button("📥 DOWNLOAD FINAL DUB", f, "didapod_result.mp3")
+                        st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("No se pudo extraer texto del audio largo.")
+                    st.error("No se detectó texto.")
 
                 if os.path.exists(temp_wav): os.remove(temp_wav)
 
         except Exception as e:
-            st.error(f"Error en proceso largo: {e}")
+            st.error(f"Error: {e}")
 
-# --- 5. DATA LOG VIEW (Para el Administrador) ---
+# --- 5. ADMIN ---
 st.write("---")
 with st.expander("📊 View Cloud DB Status (Admin Only)"):
-    st.info(f"Los datos se están sincronizando con la Google Sheet en la nube.")
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
             st.text(f.read())
-    else:
-        st.write("No hay registros locales aún.")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
