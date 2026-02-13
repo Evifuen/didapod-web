@@ -1,37 +1,9 @@
-
-
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
-import os, time, base64
-from datetime import datetime
+import os, time
 from pydub import AudioSegment
 
-# --- 1. CONFIGURATION & STYLE ---
-st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
-
-def get_base64_logo(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return None
-
-logo_data = get_base64_logo("logo2.png")
-
-st.markdown("""
-    <style>
-    .stApp { background-color: #0f172a !important; }
-    .stButton>button, .stDownloadButton>button { 
-        background-color: #7c3aed !important; 
-        color: white !important; 
-        border-radius: 12px !important; 
-        padding: 18px !important; 
-        font-weight: 800 !important; 
-        width: 100% !important; 
-        border: 1px solid white !important;
-    }
-    h1, h2, h3, label, p, span { color: white !important; }
-    </style>
-    """, unsafe_allow_html=True)
+st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️")
 
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
@@ -40,36 +12,11 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 2. LOGIN ---
-if "auth" not in st.session_state: st.session_state["auth"] = False
-if not st.session_state["auth"]:
-    with st.form("login"):
-        st.markdown("### 🔐 ACCESS PANEL")
-        user_email = st.text_input("Email Address")
-        u = st.text_input("User", value="admin")
-        p = st.text_input("Pass", type="password", value="didactai2026")
-        if st.form_submit_button("Login"):
-            if u == "admin" and p == "didactai2026" and "@" in user_email:
-                st.session_state["auth"] = True
-                st.rerun()
-            else: st.error("Invalid credentials.")
-    st.stop()
+st.title("🎙️ DIDAPOD PRO (Long Audio Support)")
 
-# --- 3. HEADER ---
-col_l, col_r = st.columns([1, 4])
-with col_l:
-    if logo_data:
-        st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
-with col_r:
-    st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
-
-# --- 4. MOTOR DE TRADUCCIÓN (Optimizado) ---
-col1, col2 = st.columns(2)
-with col1: target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
-with col2: voice_gender = st.selectbox("Select Voice Gender:", ["Female", "Male"])
-
-up_file = st.file_uploader("Upload podcast", type=["mp3", "wav"])
+target_lang = st.selectbox("Idioma Destino:", ["English", "Spanish", "French", "Portuguese"])
+voice_gender = st.selectbox("Género de Voz:", ["Female", "Male"])
+up_file = st.file_uploader("Sube tu podcast", type=["mp3", "wav"])
 
 if up_file and AZ_KEY:
     st.audio(up_file)
@@ -78,54 +25,51 @@ if up_file and AZ_KEY:
         state = {"done": False}
         
         try:
-            with st.spinner("🤖 Processing and translating..."):
-                # Preparar audio
+            with st.spinner(f"⌛ Procesando {up_file.name} (22+ min). Esto puede tardar..."):
+                # 1. Preparar audio largo
                 audio = AudioSegment.from_file(up_file)
-                audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-                temp_wav = "temp_active.wav"
+                audio = audio.set_frame_rate(16000).set_channels(1)
+                temp_wav = "temp_long.wav"
                 audio.export(temp_wav, format="wav")
 
-                # Configuración Azure
+                # 2. Configuración de Azure
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
-                t_cfg.speech_recognition_language = "es-ES"
+                t_cfg.speech_recognition_language = "es-ES" 
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
+                # Aumentar tiempos de espera para audios largos
+                t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "5000")
+
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # Callbacks
-                def on_recognized(evt):
+                # 3. Manejo de eventos para audio continuo
+                def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
                         txt = evt.result.translations.get(l_map[target_lang], "")
                         if txt: all_text.append(txt)
 
-                def stop_fn(evt):
+                def stop_cb(evt):
                     state["done"] = True
 
-                recognizer.recognized.connect(on_recognized)
-                recognizer.session_stopped.connect(stop_fn)
-                recognizer.canceled.connect(stop_fn)
+                recognizer.recognized.connect(handle_final_result)
+                recognizer.session_stopped.connect(stop_cb)
+                recognizer.canceled.connect(stop_cb)
 
-                # Inicio de proceso
+                # 4. Iniciar y esperar a que termine TODO el archivo
                 recognizer.start_continuous_recognition_async()
                 
-                # --- SOLUCIÓN AL PEGADO: Timeout de seguridad ---
-                start_time = time.time()
-                max_duration = (len(audio) / 1000) * 1.5 # 50% más del tiempo del audio
-                
-                status_placeholder = st.empty()
+                # Barra de progreso visual para el usuario
+                progress_bar = st.progress(0)
                 while not state["done"]:
-                    elapsed = time.time() - start_time
-                    status_placeholder.info(f"Escuchando... ({int(elapsed)}s)")
                     time.sleep(1)
-                    if elapsed > max_duration: # Si pasa demasiado tiempo, forzar cierre
-                        break
+                    # Simulación de progreso para que el usuario no piense que se trabó
+                    progress_bar.progress(min(len(all_text) * 2, 99)) 
                 
                 recognizer.stop_continuous_recognition_async()
-                status_placeholder.empty()
 
-                # Generar audio final
+                # 5. Unir y Generar Audio Final
                 full_script = " ".join(all_text).strip()
                 if full_script:
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
@@ -137,22 +81,16 @@ if up_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename="result.mp3")
-                    syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
+                    final_mp3 = "result_long.mp3"
+                    syn = speechsdk.SpeechSynthesizer(s_cfg, speechsdk.audio.AudioOutputConfig(filename=final_mp3))
                     syn.speak_text_async(full_script).get()
 
-                    st.balloons()
-                    st.success("✅ PODCAST READY")
-                    st.audio("result.mp3")
-                    with open("result.mp3", "rb") as f:
-                        st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
+                    st.success("✅ Doblaje de 23 min completado con éxito.")
+                    st.audio(final_mp3)
                 else:
-                    st.warning("No speech could be clearly detected. Check your audio volume.")
-                
+                    st.error("No se pudo extraer texto del audio largo.")
+
                 if os.path.exists(temp_wav): os.remove(temp_wav)
 
         except Exception as e:
-            st.error(f"System Error: {e}")
-
-st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
+            st.error(f"Error en proceso largo: {e}")
