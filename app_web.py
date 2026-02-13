@@ -1,4 +1,4 @@
-mport streamlit as st
+Import streamlit as st
 import edge_tts
 import asyncio
 import os
@@ -182,4 +182,5 @@ with st.expander("📊 View Registered Emails (Admin Only)"):
         st.info("No emails registered yet.")
 
 st.markdown("<br><hr><center><small style='color:#94a3b8;'>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
