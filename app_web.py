@@ -47,7 +47,7 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 3. PROCESAMIENTO (PICA, TRADUCE Y UNE) ---
+# --- 3. THE "PIECE BY PIECE" ENGINE ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -59,54 +59,54 @@ if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START FULL DUBBING"):
         all_text = []
-        state = {"done": False}
+        # We use a dict to avoid the "nonlocal" SyntaxError from your screenshots
+        status = {"is_done": False}
 
         try:
-            with st.spinner("🤖 Picando y traduciendo el podcast..."):
-                # Conversión técnica WAV
+            with st.spinner("🤖 Fragmentation & Translation in progress..."):
+                # Technical WAV normalization
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # Config Azure
+                # Azure Translation Config
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
                 push_stream = speechsdk.audio.PushAudioInputStream()
                 audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-                
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # --- EVENTOS CORREGIDOS ---
-                def handle_recognized(evt):
-                    # Este evento se dispara cuando Azure termina de 'picar' una frase completa
+                # --- CORRECT EVENT HANDLING (No more 'translated' attribute error) ---
+                def on_recognized(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations.get(l_map[target_lang], "")
-                        if txt:
-                            all_text.append(txt)
+                        part = evt.result.translations.get(l_map[target_lang], "")
+                        if part:
+                            all_text.append(part)
 
-                def stop_cb(evt):
-                    state["done"] = True
+                def on_stop(evt):
+                    status["is_done"] = True
 
-                # Conectar los nombres correctos de la librería
-                recognizer.recognized.connect(handle_recognized) # AQUÍ ESTABA EL ERROR
-                recognizer.session_stopped.connect(stop_cb)
-                recognizer.canceled.connect(stop_cb)
+                # Connecting events to collect the "pieces"
+                recognizer.recognized.connect(on_recognized)
+                recognizer.session_stopped.connect(on_stop)
+                recognizer.canceled.connect(on_stop)
 
-                # Iniciar proceso continuo
+                # Start continuous processing
                 recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
 
-                while not state["done"]:
+                # Wait for all segments to be processed
+                while not status["is_done"]:
                     time.sleep(0.5)
                 
                 recognizer.stop_continuous_recognition_async()
 
-                # --- UNIÓN Y DOBLAJE ---
+                # --- REASSEMBLY & FINAL DUBBING ---
                 full_script = " ".join(all_text)
 
                 if full_script:
@@ -119,20 +119,20 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    final_mp3 = "didapod_final.mp3"
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_mp3)
+                    output_file = "didapod_final_dub.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=output_file)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ ¡Doblaje completo!")
-                    st.audio(final_mp3)
-                    with open(final_mp3, "rb") as f:
-                        st.download_button("📥 DESCARGAR AUDIO", f, "didapod_result.mp3")
+                    st.success("✅ Dubbing Complete!")
+                    st.audio(output_file)
+                    with open(output_file, "rb") as f:
+                        st.download_button("📥 DOWNLOAD DUBBED PODCAST", f, "didapod_result.mp3")
                 else:
-                    st.error("No se detectó voz suficiente para traducir.")
+                    st.error("Azure couldn't find enough speech. Please ensure the file has clear voices.")
 
         except Exception as e:
-            st.error(f"Error de sistema: {e}")
+            st.error(f"System Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
