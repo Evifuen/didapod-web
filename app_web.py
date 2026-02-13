@@ -4,11 +4,10 @@ import os, requests, io, time
 from datetime import datetime
 from pydub import AudioSegment
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIG & STYLE ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
-# Estilo Visual
 st.markdown("""
 <style>
 .stApp { background-color: #0f172a !important; }
@@ -30,7 +29,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 2. LOGIN & SHEETS (INALTERADO) ---
+# --- 2. LOGIN & SHEETS ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -48,7 +47,7 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 3. PROCESAMIENTO POR FRAGMENTOS (Doblaje Largo) ---
+# --- 3. PROCESAMIENTO (PICA, TRADUCE Y UNE) ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -58,21 +57,20 @@ uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4
 
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
-    if st.button("🚀 START FULL DUBBING PROCESS"):
-        # Variables para picar y unir
+    if st.button("🚀 START FULL DUBBING"):
         all_text = []
-        state = {"done": False} # Diccionario para evitar el SyntaxError de 'nonlocal'
+        state = {"done": False}
 
         try:
-            with st.spinner("🤖 Picing and translating segments..."):
-                # Conversión técnica
+            with st.spinner("🤖 Picando y traduciendo el podcast..."):
+                # Conversión técnica WAV
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # Config Azure Translation
+                # Config Azure
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
@@ -82,26 +80,27 @@ if uploaded_file and AZ_KEY:
                 
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # Funciones de evento para ir uniendo el texto
-                def handle_final_result(evt):
+                # --- EVENTOS CORREGIDOS ---
+                def handle_recognized(evt):
+                    # Este evento se dispara cuando Azure termina de 'picar' una frase completa
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        text_part = evt.result.translations.get(l_map[target_lang], "")
-                        if text_part:
-                            all_text.append(text_part)
+                        txt = evt.result.translations.get(l_map[target_lang], "")
+                        if txt:
+                            all_text.append(txt)
 
-                def stop_cb(evt): state["done"] = True
+                def stop_cb(evt):
+                    state["done"] = True
 
-                # Conectar los "ganchos" de Azure
-                recognizer.translated.connect(handle_final_result)
+                # Conectar los nombres correctos de la librería
+                recognizer.recognized.connect(handle_recognized) # AQUÍ ESTABA EL ERROR
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
 
-                # Iniciar el motor de picado continuo
+                # Iniciar proceso continuo
                 recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
 
-                # Esperar a que Azure termine de "picar" todo el audio
                 while not state["done"]:
                     time.sleep(0.5)
                 
@@ -120,19 +119,20 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    final_dub = "didapod_final.mp3"
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_dub)
+                    final_mp3 = "didapod_final.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_mp3)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Podcast Dubbed Successfully!")
-                    st.audio(final_dub)
-                    with open(final_dub, "rb") as f:
-                        st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
+                    st.success("✅ ¡Doblaje completo!")
+                    st.audio(final_mp3)
+                    with open(final_mp3, "rb") as f:
+                        st.download_button("📥 DESCARGAR AUDIO", f, "didapod_result.mp3")
                 else:
-                    st.error("Could not process audio content.")
+                    st.error("No se detectó voz suficiente para traducir.")
+
         except Exception as e:
-            st.error(f"System Error: {e}")
+            st.error(f"Error de sistema: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
