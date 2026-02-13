@@ -4,7 +4,7 @@ import os, requests, io, time, base64
 from datetime import datetime
 from pydub import AudioSegment
 
-# --- 1. CONFIGURATION & STYLE (Tu branding original) ---
+# --- 1. CONFIGURATION & STYLE ---
 st.set_page_config(page_title="DIDAPOD - DidactAI", page_icon="🎙️", layout="centered")
 
 def get_base64_logo(path):
@@ -38,7 +38,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 2. LOGIN (Restaurado exactamente como lo pediste) ---
+# --- 2. LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -48,12 +48,9 @@ if not st.session_state["auth"]:
         p = st.text_input("Pass", type="password", value="didactai2026")
         
         if st.form_submit_button("Login"):
-            # Validación original
             if u == "admin" and p == "didactai2026":
                 if user_email and "@" in user_email:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    with open("database_emails.txt", "a") as f:
-                        f.write(f"{timestamp} | {user_email}\n")
                     st.session_state["auth"] = True
                     st.rerun()
                 else:
@@ -71,7 +68,7 @@ with col_r:
     st.markdown("<h1 style='margin:0;'>DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Enterprise Dubbing by DidactAI-US</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR DE TRADUCCIÓN (Simplificado para evitar errores) ---
+# --- 4. MOTOR DE TRADUCCIÓN ---
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Select Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with col2: voice_gender = st.selectbox("Select Voice Gender:", ["Female", "Male"])
@@ -82,40 +79,55 @@ if up_file and AZ_KEY:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         all_text = []
-        state = {"done": False}
+        done_flag = False
         
         try:
-            with st.spinner("🤖 DidactAI is processing the audio..."):
-                # Convertir archivo para asegurar que Azure lo lea
+            with st.spinner("🤖 DidactAI is processing and translating..."):
+                # 1. Preparar audio (WAV 16kHz Mono es lo que mejor lee Azure)
                 audio = AudioSegment.from_file(up_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 temp_wav = "temp_active.wav"
                 audio.export(temp_wav, format="wav")
 
-                # Configuración de Azure
+                # 2. Configurar Traducción
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
+                t_cfg.speech_recognition_language = "es-ES" # IDIOMA ORIGEN (Cámbialo si el podcast es en inglés)
+                
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
+                # 3. Manejo de Eventos (Corregido para no perder texto)
                 def on_recognized(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations.get(l_map[target_lang], "")
-                        if txt: all_text.append(txt)
+                        tr_dict = evt.result.translations
+                        txt = tr_dict.get(l_map[target_lang], "")
+                        if txt:
+                            all_text.append(txt)
 
+                def stop_fn(evt):
+                    nonlocal done_flag
+                    done_flag = True
+
+                # Conectar eventos oficiales
                 recognizer.recognized.connect(on_recognized)
-                recognizer.session_stopped.connect(lambda evt: state.update({"done": True}))
-                recognizer.canceled.connect(lambda evt: state.update({"done": True}))
+                recognizer.session_stopped.connect(stop_fn)
+                recognizer.canceled.connect(stop_fn)
 
+                # 4. Ejecutar Reconocimiento Continuo
                 recognizer.start_continuous_recognition_async()
-                while not state["done"]:
+                
+                # Espera activa hasta que termine de leer el archivo
+                while not done_flag:
                     time.sleep(0.5)
+                
                 recognizer.stop_continuous_recognition_async()
 
-                # Generar resultado final
-                full_script = " ".join(all_text)
+                # 5. Generar Audio Final (TTS)
+                full_script = " ".join(all_text).strip()
+                
                 if full_script:
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
@@ -126,24 +138,34 @@ if up_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename="result.mp3")
+                    final_file = "result.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_file)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
-                    syn.speak_text_async(full_script).get()
-
-                    st.balloons()
-                    st.success("✅ PODCAST READY")
-                    st.audio("result.mp3")
-                    with open("result.mp3", "rb") as f:
-                        st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
+                    
+                    result = syn.speak_text_async(full_script).get()
+                    
+                    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                        st.balloons()
+                        st.success("✅ PODCAST READY")
+                        st.audio(final_file)
+                        with open(final_file, "rb") as f:
+                            st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
+                    else:
+                        st.error("Error synthesizing audio. Check your Azure limits.")
                 else:
-                    st.error("No speech detected. Please check if your Azure Key/Region are correct in Secrets.")
+                    st.error("No speech detected. Please verify your Audio file or Azure Key/Region.")
                 
+                # Limpieza de temporales
                 if os.path.exists(temp_wav): os.remove(temp_wav)
 
         except Exception as e:
             st.error(f"System Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
+
+
+
 
 
 
