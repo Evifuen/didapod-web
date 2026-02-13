@@ -17,6 +17,7 @@ st.markdown("""
     border-radius: 12px !important;
     padding: 18px !important;
     font-weight: 800 !important;
+    width: 100% !important;
 }
 h1, h2, h3, label, p, span { color: white !important; }
 </style>
@@ -29,7 +30,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 2. LOGIN & SHEETS ---
+# --- 2. LOGIN & SHEETS REGISTRATION ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -47,7 +48,7 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 3. THE "PIECE BY PIECE" ENGINE ---
+# --- 3. DUBBING ENGINE (SPLIT & JOIN) ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -59,54 +60,49 @@ if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START FULL DUBBING"):
         all_text = []
-        # We use a dict to avoid the "nonlocal" SyntaxError from your screenshots
         status = {"is_done": False}
 
         try:
             with st.spinner("🤖 Fragmentation & Translation in progress..."):
-                # Technical WAV normalization
+                # STEP A: Create physical temp file (Crucial for long podcasts)
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-                wav_io = io.BytesIO()
-                audio.export(wav_io, format="wav")
-                wav_data = wav_io.getvalue()
+                temp_wav = "temp_process.wav"
+                audio.export(temp_wav, format="wav")
 
-                # Azure Translation Config
+                # STEP B: Azure Configuration
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
-                push_stream = speechsdk.audio.PushAudioInputStream()
-                audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
+                audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # --- CORRECT EVENT HANDLING (No more 'translated' attribute error) ---
+                # STEP C: Handlers to collect "pieces" of text
                 def on_recognized(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        part = evt.result.translations.get(l_map[target_lang], "")
-                        if part:
-                            all_text.append(part)
+                        translation = evt.result.translations.get(l_map[target_lang], "")
+                        if translation:
+                            all_text.append(translation)
 
                 def on_stop(evt):
                     status["is_done"] = True
 
-                # Connecting events to collect the "pieces"
+                # Connect correct SDK events
                 recognizer.recognized.connect(on_recognized)
                 recognizer.session_stopped.connect(on_stop)
                 recognizer.canceled.connect(on_stop)
 
                 # Start continuous processing
                 recognizer.start_continuous_recognition_async()
-                push_stream.write(wav_data)
-                push_stream.close()
-
-                # Wait for all segments to be processed
+                
+                # Wait for the file to be fully processed
                 while not status["is_done"]:
-                    time.sleep(0.5)
+                    time.sleep(1)
                 
                 recognizer.stop_continuous_recognition_async()
 
-                # --- REASSEMBLY & FINAL DUBBING ---
+                # STEP D: Reassembly & Neural Synthesis
                 full_script = " ".join(all_text)
 
                 if full_script:
@@ -119,18 +115,21 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    output_file = "didapod_final_dub.mp3"
+                    output_file = "didapod_result.mp3"
                     audio_out = speechsdk.audio.AudioOutputConfig(filename=output_file)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Dubbing Complete!")
+                    st.success("✅ Dubbing process successful!")
                     st.audio(output_file)
                     with open(output_file, "rb") as f:
-                        st.download_button("📥 DOWNLOAD DUBBED PODCAST", f, "didapod_result.mp3")
+                        st.download_button("📥 DOWNLOAD DUBBED AUDIO", f, "didapod_result.mp3")
+                    
+                    # Cleanup
+                    if os.path.exists(temp_wav): os.remove(temp_wav)
                 else:
-                    st.error("Azure couldn't find enough speech. Please ensure the file has clear voices.")
+                    st.error("No clear speech detected. Check volume or audio clarity.")
 
         except Exception as e:
             st.error(f"System Error: {e}")
