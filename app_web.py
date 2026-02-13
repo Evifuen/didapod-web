@@ -2,7 +2,7 @@ import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
 import os, requests, io
 from datetime import datetime
-from pydub import AudioSegment  # Librería para la conversión a WAV
+from pydub import AudioSegment
 
 # --- 1. CONFIG & STYLE ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
@@ -55,31 +55,28 @@ col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with col2: voice_gender = st.selectbox("Voice Gender:", ["Female", "Male"])
 
-uploaded_file = st.file_uploader("Upload Audio (MP3, WAV, M4A)", type=["mp3", "wav", "m4a"])
+uploaded_file = st.file_uploader("Upload Audio", type=["mp3", "wav", "m4a"])
 
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START AI DUBBING PROCESS"):
         try:
-            with st.spinner("🤖 Converting to WAV and processing..."):
-                # --- PASO CLAVE: CONVERSIÓN A WAV PCM 16kHz ---
-                # Cargamos el audio (sea MP3 o WAV original) y lo normalizamos
+            with st.spinner("🤖 Converting & Dubbing..."):
+                # CONVERSIÓN A WAV PCM 16kHz
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 
-                # Exportamos a un buffer de bytes para Azure
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # --- CONFIGURACIÓN AZURE ---
+                # CONFIG AZURE
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 
-                # Usamos un stream para inyectar los datos convertidos
                 push_stream = speechsdk.audio.PushAudioInputStream()
                 audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
                 
-                # Auto-detección de idioma
+                # Auto-detección
                 auto_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-ES", "en-US", "fr-FR", "pt-BR"])
                 
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
@@ -91,14 +88,16 @@ if uploaded_file and AZ_KEY:
                     auto_detect_source_language_config=auto_config
                 )
 
-                # Inyectamos el audio convertido al motor de Azure
                 push_stream.write(wav_data)
                 push_stream.close()
                 
                 result = recognizer.recognize_once_async().get()
 
                 if result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                    # SÍNTESIS DE VOZ
+                    # EXTRAER IDIOMA DETECTADO (Corrección del error anterior)
+                    det_lang = result.properties.get(speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguageResult)
+                    
+                    # SÍNTESIS
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -116,14 +115,13 @@ if uploaded_file and AZ_KEY:
                     syn.speak_text_async(translated_text).get()
 
                     st.balloons()
-                    st.success(f"Success! Detected language: {result.detected_language}")
+                    st.success(f"Dubbing Success! Detected: {det_lang}")
                     st.audio(output_file)
                     with open(output_file, "rb") as f: 
                         st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
                 else:
                     st.error(f"Azure Error: {result.reason}")
         except Exception as e:
-            st.error(f"Conversion Error: {e}")
+            st.error(f"Processing Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-
