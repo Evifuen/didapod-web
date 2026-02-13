@@ -1,10 +1,10 @@
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
-import os, requests, io, time
+import os, requests, io
 from datetime import datetime
 from pydub import AudioSegment
 
-# --- 1. CONFIG & STYLE (INTACTO) ---
+# --- 1. CONFIG & STYLE (TU DISEÑO SIGUE AQUÍ) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
@@ -17,11 +17,13 @@ st.markdown("""
     border-radius: 12px !important;
     padding: 18px !important;
     font-weight: 800 !important;
+    width: 100% !important;
 }
 h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# --- 2. MOTOR DE LLAVES ---
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
@@ -29,7 +31,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 2. LOGIN (SHEETS SIGUE FUNCIONANDO) ---
+# --- 3. LOGIN & REGISTRO (GOOGLE SHEETS - ¡SÍ ESTÁ!) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -39,15 +41,17 @@ if not st.session_state["auth"]:
         p = st.text_input("Password", type="password", value="didactai2026")
         if st.form_submit_button("LOGIN"):
             if u == "admin" and p == "didactai2026" and "@" in user_email:
+                # --- ESTO ES LO QUE GUARDA EN TU BASE DE DATOS ---
                 try: requests.post(APPS_SCRIPT_URL, json={"email": user_email, "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                 except: pass
+                # -----------------------------------------------
                 st.session_state["auth"] = True
                 st.session_state["user_email"] = user_email
                 st.rerun()
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 3. PROCESAMIENTO ---
+# --- 4. INTERFAZ Y PROCESO ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -59,37 +63,25 @@ if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START AI DUBBING"):
         try:
-            with st.spinner("🤖 Processing... please wait."):
-                # Conversión a WAV (Para evitar Error de Header)
+            with st.spinner("🤖 Processing..."):
+                # Conversión a WAV
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-                wav_io = io.BytesIO()
-                audio.export(wav_io, format="wav")
-                wav_data = wav_io.getvalue()
+                temp_wav = "temp_process.wav"
+                audio.export(temp_wav, format="wav")
 
-                # Configuración de Azure
+                # Traducción
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
-                # Inyectamos el audio convertido
-                push_stream = speechsdk.audio.PushAudioInputStream()
-                audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-                
-                # Usamos el reconocedor estándar (sin funciones complejas de 'nonlocal')
+                audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                push_stream.write(wav_data)
-                push_stream.close()
-                
-                # Escuchamos una vez (esto procesa hasta 30-40 segundos de voz continua)
                 result = recognizer.recognize_once_async().get()
 
                 if result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                    # Texto traducido
-                    tr_text = result.translations[l_map[target_lang]]
-                    
-                    # Generar voz neural
+                    # Doblaje con Voz Neural
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -99,20 +91,25 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    out_f = "output_dub.mp3"
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename=out_f)
+                    output_file = "didapod_final.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=output_file)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
-                    syn.speak_text_async(tr_text).get()
+                    
+                    translated_text = result.translations[l_map[target_lang]]
+                    syn.speak_text_async(translated_text).get()
 
                     st.balloons()
-                    st.success("✅ Dubbing Complete!")
-                    st.audio(out_f)
-                    with open(out_f, "rb") as f:
+                    st.success("✅ Complete!")
+                    st.audio(output_file)
+                    with open(output_file, "rb") as f: 
                         st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
+                    
+                    if os.path.exists(temp_wav): os.remove(temp_wav)
                 else:
-                    st.error(f"Azure couldn't understand the audio: {result.reason}")
-
+                    st.error(f"Azure Error: {result.reason}")
         except Exception as e:
-            st.error(f"System Error: {e}")
+            st.error(f"Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
+
