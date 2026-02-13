@@ -3,7 +3,7 @@ import azure.cognitiveservices.speech as speechsdk
 import os, requests
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y GOOGLE SHEETS ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
@@ -23,7 +23,7 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. LIMPIADOR DE LLAVES ---
+# --- 3. MOTOR DE LIMPIEZA DE LLAVES ---
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
@@ -61,22 +61,33 @@ if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START AI DUBBING PROCESS"):
         try:
-            with st.spinner("🤖 Detecting Language & Translating..."):
-                with open("temp.wav", "wb") as f: f.write(uploaded_file.getbuffer())
+            with st.spinner("🤖 Processing audio stream and translating..."):
+                # LEER ARCHIVO COMO BINARIO (Para evitar error de Header)
+                audio_data = uploaded_file.read()
 
                 # CONFIGURACIÓN TRADUCCIÓN
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
-                # Parche de seguridad para la conexión
                 t_cfg.set_property(speechsdk.PropertyId.Speech_LogFilename, "log.txt")
                 
-                # AUTO DETECCIÓN DE IDIOMA (Cerebro del sistema)
+                # AUTO DETECCIÓN DE IDIOMA
                 auto_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-ES", "en-US", "fr-FR", "pt-BR"])
+                
+                # CONFIGURACIÓN DE AUDIO POR STREAM (Solución al error 0xa)
+                push_stream = speechsdk.audio.PushAudioInputStream()
+                audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
                 
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
-                audio_config = speechsdk.audio.AudioConfig(filename="temp.wav")
-                recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config, auto_detect_source_language_config=auto_config)
+                recognizer = speechsdk.translation.TranslationRecognizer(
+                    translation_config=t_cfg, 
+                    audio_config=audio_config, 
+                    auto_detect_source_language_config=auto_config
+                )
+
+                # "Empujamos" los datos al motor de Azure
+                push_stream.write(audio_data)
+                push_stream.close()
                 
                 result = recognizer.recognize_once_async().get()
 
@@ -91,14 +102,19 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename="out.mp3")
+                    output_file = "dubbed_result.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=output_file)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
-                    syn.speak_text_async(result.translations[l_map[target_lang]]).get()
+                    
+                    # Sintetizar el texto traducido
+                    translated_text = result.translations[l_map[target_lang]]
+                    syn.speak_text_async(translated_text).get()
 
                     st.balloons()
-                    st.success("Dubbing Finished!")
-                    st.audio("out.mp3")
-                    with open("out.mp3", "rb") as f: st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
+                    st.success("Dubbing Finished Successfully!")
+                    st.audio(output_file)
+                    with open(output_file, "rb") as f: 
+                        st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
                 else:
                     st.error(f"Azure Connection Error: {result.reason}")
         except Exception as e:
