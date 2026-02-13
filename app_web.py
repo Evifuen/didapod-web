@@ -4,10 +4,11 @@ import os, requests, io, time
 from datetime import datetime
 from pydub import AudioSegment
 
-# --- 1. CONFIG & STYLE ---
+# --- 1. CONFIGURACIÓN ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
+# Estilo Visual
 st.markdown("""
 <style>
 .stApp { background-color: #0f172a !important; }
@@ -22,7 +23,6 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE LLAVES ---
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
@@ -30,7 +30,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 3. LOGIN & REGISTRO (CONEXIÓN SHEETS ACTIVA) ---
+# --- 2. LOGIN & SHEETS (INALTERADO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -48,7 +48,7 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 4. PROCESO DE FRAGMENTACIÓN Y DOBLAJE ---
+# --- 3. PROCESAMIENTO POR FRAGMENTOS (Doblaje Largo) ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
@@ -58,21 +58,21 @@ uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4
 
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
-    if st.button("🚀 START AI DUBBING"):
-        # Variables para acumular las partes
+    if st.button("🚀 START FULL DUBBING PROCESS"):
+        # Variables para picar y unir
         all_text = []
-        state = {"done": False}
+        state = {"done": False} # Diccionario para evitar el SyntaxError de 'nonlocal'
 
         try:
-            with st.spinner("🤖 Fragmentation & Translation in progress..."):
-                # Conversión técnica inicial
+            with st.spinner("🤖 Picing and translating segments..."):
+                # Conversión técnica
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # Config Azure
+                # Config Azure Translation
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
@@ -82,31 +82,32 @@ if uploaded_file and AZ_KEY:
                 
                 recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # --- Lógica de "Picado" y Unión ---
+                # Funciones de evento para ir uniendo el texto
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations.get(l_map[target_lang], "")
-                        if txt: all_text.append(txt) # Aquí vamos uniendo las partes
+                        text_part = evt.result.translations.get(l_map[target_lang], "")
+                        if text_part:
+                            all_text.append(text_part)
 
                 def stop_cb(evt): state["done"] = True
 
-                # Conectamos los eventos para que Azure trabaje frase por frase
+                # Conectar los "ganchos" de Azure
                 recognizer.translated.connect(handle_final_result)
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
 
-                # Iniciar el proceso continuo
+                # Iniciar el motor de picado continuo
                 recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
 
-                # Esperar a que Azure termine de picar y traducir todo
+                # Esperar a que Azure termine de "picar" todo el audio
                 while not state["done"]:
                     time.sleep(0.5)
                 
                 recognizer.stop_continuous_recognition_async()
 
-                # --- Unión Final y Creación de Audio ---
+                # --- UNIÓN Y DOBLAJE ---
                 full_script = " ".join(all_text)
 
                 if full_script:
@@ -119,20 +120,19 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    final_mp3 = "didapod_final.mp3"
-                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_mp3)
+                    final_dub = "didapod_final.mp3"
+                    audio_out = speechsdk.audio.AudioOutputConfig(filename=final_dub)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Doblaje completo exitosamente.")
-                    st.audio(final_mp3)
-                    with open(final_mp3, "rb") as f:
-                        st.download_button("📥 DESCARGAR DOBLAJE", f, "didapod_result.mp3")
+                    st.success("✅ Podcast Dubbed Successfully!")
+                    st.audio(final_dub)
+                    with open(final_dub, "rb") as f:
+                        st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
                 else:
-                    st.error("No se pudo extraer texto del audio.")
-
+                    st.error("Could not process audio content.")
         except Exception as e:
-            st.error(f"Error en el sistema: {e}")
+            st.error(f"System Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
