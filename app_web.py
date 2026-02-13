@@ -4,7 +4,7 @@ import os, requests, io, time
 from datetime import datetime
 from pydub import AudioSegment
 
-# --- 1. CONFIG & STYLE ---
+# --- 1. CONFIG & STYLE (INTACTO) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
@@ -22,7 +22,6 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE LLAVES ---
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
@@ -30,7 +29,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 3. LOGIN & SHEETS (INTACTO) ---
+# --- 2. LOGIN (SHEETS SIGUE FUNCIONANDO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -48,75 +47,49 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 4. INTERFAZ Y LÓGICA DE DOBLAJE ---
+# --- 3. PROCESAMIENTO ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with col2: voice_gender = st.selectbox("Voice Gender:", ["Female", "Male"])
 
-uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4a"])
+uploaded_file = st.file_uploader("Upload Audio", type=["mp3", "wav", "m4a"])
 
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
-    if st.button("🚀 START FULL DUBBING PROCESS"):
-        # Variables de estado para el reconocimiento continuo
-        # Las definimos aquí para evitar el SyntaxError de tus imágenes
-        all_text = []
-        state = {"done": False} 
-
+    if st.button("🚀 START AI DUBBING"):
         try:
-            with st.spinner("🤖 Processing entire audio... Please wait."):
-                # Conversión WAV (Garantiza que Azure no dé error de Header)
+            with st.spinner("🤖 Processing... please wait."):
+                # Conversión a WAV (Para evitar Error de Header)
                 audio = AudioSegment.from_file(uploaded_file)
                 audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
                 wav_io = io.BytesIO()
                 audio.export(wav_io, format="wav")
                 wav_data = wav_io.getvalue()
 
-                # Config Azure Translation
+                # Configuración de Azure
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 t_cfg.add_target_language(l_map[target_lang])
                 
+                # Inyectamos el audio convertido
                 push_stream = speechsdk.audio.PushAudioInputStream()
                 audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
-                auto_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-ES", "en-US", "fr-FR", "pt-BR"])
                 
-                recognizer = speechsdk.translation.TranslationRecognizer(
-                    translation_config=t_cfg, 
-                    audio_config=audio_config, 
-                    auto_detect_source_language_config=auto_config
-                )
+                # Usamos el reconocedor estándar (sin funciones complejas de 'nonlocal')
+                recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
 
-                # Funciones de control de eventos
-                def stop_handle(evt):
-                    state["done"] = True
-
-                def translated_handle(evt):
-                    if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations.get(l_map[target_lang], "")
-                        if txt: all_text.append(txt)
-
-                # Conectar eventos
-                recognizer.translated.connect(translated_handle)
-                recognizer.session_stopped.connect(stop_handle)
-                recognizer.canceled.connect(stop_handle)
-
-                # Iniciar traducción continua (Para podcasts largos)
-                recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
-
-                # Esperar a que termine de procesar el archivo
-                while not state["done"]:
-                    time.sleep(0.5)
                 
-                recognizer.stop_continuous_recognition_async()
+                # Escuchamos una vez (esto procesa hasta 30-40 segundos de voz continua)
+                result = recognizer.recognize_once_async().get()
 
-                full_script = " ".join(all_text)
-
-                if full_script:
-                    # Generar Audio de Salida (Doblaje)
+                if result.reason == speechsdk.ResultReason.TranslatedSpeech:
+                    # Texto traducido
+                    tr_text = result.translations[l_map[target_lang]]
+                    
+                    # Generar voz neural
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -126,18 +99,19 @@ if uploaded_file and AZ_KEY:
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
                     
-                    out_f = "final_podcast_dub.mp3"
+                    out_f = "output_dub.mp3"
                     audio_out = speechsdk.audio.AudioOutputConfig(filename=out_f)
                     syn = speechsdk.SpeechSynthesizer(s_cfg, audio_out)
-                    syn.speak_text_async(full_script).get()
+                    syn.speak_text_async(tr_text).get()
 
                     st.balloons()
-                    st.success("✅ Full Podcast Dubbed!")
+                    st.success("✅ Dubbing Complete!")
                     st.audio(out_f)
                     with open(out_f, "rb") as f:
-                        st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
+                        st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("No speech detected. Try a clearer audio.")
+                    st.error(f"Azure couldn't understand the audio: {result.reason}")
+
         except Exception as e:
             st.error(f"System Error: {e}")
 
