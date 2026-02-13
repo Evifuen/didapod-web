@@ -30,7 +30,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 3. LOGIN & SHEETS ---
+# --- 3. LOGIN & SHEETS (INTACTO) ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -59,6 +59,10 @@ uploaded_file = st.file_uploader("Upload Podcast Audio", type=["mp3", "wav", "m4
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START FULL DUBBING PROCESS"):
+        # DEFINIMOS done AQUÍ AFUERA PARA QUE LAS FUNCIONES LO VEAN
+        done = False
+        all_text = []
+        
         try:
             with st.spinner("🤖 Processing entire audio... this may take a moment."):
                 # Conversión WAV
@@ -83,10 +87,7 @@ if uploaded_file and AZ_KEY:
                     auto_detect_source_language_config=auto_config
                 )
 
-                # --- VARIABLES DE ESTADO ---
-                all_text = []
-                done = False  # Definida aquí para que 'nonlocal' la encuentre
-
+                # FUNCIONES DE CONTROL
                 def stop_handle(evt):
                     nonlocal done
                     done = True
@@ -100,10 +101,12 @@ if uploaded_file and AZ_KEY:
                 recognizer.session_stopped.connect(stop_handle)
                 recognizer.canceled.connect(stop_handle)
 
+                # Ejecutar Reconocimiento Continuo
                 recognizer.start_continuous_recognition_async()
                 push_stream.write(wav_data)
                 push_stream.close()
 
+                # Esperar hasta que termine
                 while not done:
                     time.sleep(0.5)
                 
@@ -112,6 +115,7 @@ if uploaded_file and AZ_KEY:
                 full_script = " ".join(all_text)
 
                 if full_script:
+                    # SÍNTESIS DE VOZ
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -132,7 +136,7 @@ if uploaded_file and AZ_KEY:
                     with open(out_f, "rb") as f:
                         st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
                 else:
-                    st.error("Could not extract enough speech for translation.")
+                    st.error("No speech detected.")
         except Exception as e:
             st.error(f"Error: {e}")
 
