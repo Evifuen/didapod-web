@@ -1,13 +1,13 @@
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
-import os, requests
+import os, requests, io
 from datetime import datetime
+from pydub import AudioSegment  # Librería para la conversión a WAV
 
-# --- 1. CONFIG ---
+# --- 1. CONFIG & STYLE ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
 st.set_page_config(page_title="DIDAPOD PRO", page_icon="🎙️", layout="centered")
 
-# --- 2. STYLE ---
 st.markdown("""
 <style>
 .stApp { background-color: #0f172a !important; }
@@ -23,7 +23,7 @@ h1, h2, h3, label, p, span { color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CLEANER ---
+# --- 2. CLEANER ---
 def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
@@ -31,7 +31,7 @@ def get_clean_secret(name):
 AZ_KEY = get_clean_secret("AZURE_KEY")
 AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
 
-# --- 4. LOGIN ---
+# --- 3. LOGIN & REGISTRO ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if not st.session_state["auth"]:
     with st.form("login"):
@@ -49,30 +49,37 @@ if not st.session_state["auth"]:
             else: st.error("Access Denied.")
     st.stop()
 
-# --- 5. MAIN ---
+# --- 4. INTERFACE ---
 st.title("🎙️ DIDAPOD PRO")
 col1, col2 = st.columns(2)
 with col1: target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 with col2: voice_gender = st.selectbox("Voice Gender:", ["Female", "Male"])
 
-uploaded_file = st.file_uploader("Upload Audio", type=["mp3", "wav"])
+uploaded_file = st.file_uploader("Upload Audio (MP3, WAV, M4A)", type=["mp3", "wav", "m4a"])
 
 if uploaded_file and AZ_KEY:
     st.audio(uploaded_file)
     if st.button("🚀 START AI DUBBING PROCESS"):
         try:
-            with st.spinner("🤖 AI is analyzing and dubbing..."):
-                audio_data = uploaded_file.read()
+            with st.spinner("🤖 Converting to WAV and processing..."):
+                # --- PASO CLAVE: CONVERSIÓN A WAV PCM 16kHz ---
+                # Cargamos el audio (sea MP3 o WAV original) y lo normalizamos
+                audio = AudioSegment.from_file(uploaded_file)
+                audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+                
+                # Exportamos a un buffer de bytes para Azure
+                wav_io = io.BytesIO()
+                audio.export(wav_io, format="wav")
+                wav_data = wav_io.getvalue()
 
-                # CONFIGURACIÓN TRADUCCIÓN
+                # --- CONFIGURACIÓN AZURE ---
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
                 
-                # Definimos el formato del audio (16kHz, 16-bit, Mono es el estándar de Azure)
-                # Esto ayuda a evitar el NoMatch
-                stream_format = speechsdk.audio.AudioStreamFormat(samples_per_second=16000, bits_per_sample=16, channels=1)
-                push_stream = speechsdk.audio.PushAudioInputStream(stream_format)
+                # Usamos un stream para inyectar los datos convertidos
+                push_stream = speechsdk.audio.PushAudioInputStream()
                 audio_config = speechsdk.audio.AudioConfig(stream=push_stream)
                 
+                # Auto-detección de idioma
                 auto_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-ES", "en-US", "fr-FR", "pt-BR"])
                 
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
@@ -84,14 +91,14 @@ if uploaded_file and AZ_KEY:
                     auto_detect_source_language_config=auto_config
                 )
 
-                # Enviamos el audio
-                push_stream.write(audio_data)
+                # Inyectamos el audio convertido al motor de Azure
+                push_stream.write(wav_data)
                 push_stream.close()
                 
                 result = recognizer.recognize_once_async().get()
 
                 if result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                    # SÍNTESIS
+                    # SÍNTESIS DE VOZ
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
                         "English": {"Female": "en-US-JennyNeural", "Male": "en-US-GuyNeural"},
@@ -109,16 +116,14 @@ if uploaded_file and AZ_KEY:
                     syn.speak_text_async(translated_text).get()
 
                     st.balloons()
-                    st.success("Dubbing Finished!")
+                    st.success(f"Success! Detected language: {result.detected_language}")
                     st.audio(output_file)
                     with open(output_file, "rb") as f: 
                         st.download_button("📥 DOWNLOAD AUDIO", f, "didapod_result.mp3")
-                
-                elif result.reason == speechsdk.ResultReason.NoMatch:
-                    st.warning("No speech detected. Try a clearer audio or a WAV file.")
                 else:
-                    st.error(f"Azure Connection Error: {result.reason}")
+                    st.error(f"Azure Error: {result.reason}")
         except Exception as e:
-            st.error(f"System Failure: {e}")
+            st.error(f"Conversion Error: {e}")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
