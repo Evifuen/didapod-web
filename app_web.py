@@ -54,7 +54,6 @@ if not st.session_state["auth"]:
             if u == "admin" and p == "didactai2026" and "@" in user_email:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 try:
-                    # Envío asíncrono simulado (timeout corto para no trabar el login)
                     requests.post(APPS_SCRIPT_URL, json={"email": user_email, "timestamp": timestamp}, timeout=1)
                     with open("database_emails.txt", "a") as f:
                         f.write(f"{timestamp} | {user_email}\n")
@@ -71,9 +70,9 @@ with col_l:
         st.markdown(f'<img src="data:image/png;base64,{logo_data}" width="110" style="border-radius:10px;">', unsafe_allow_html=True)
 with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Fast Long Audio Support</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR OPTIMIZADO EN RESPUESTA ---
+# --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
 target_lang = st.selectbox("Idioma Destino:", ["English", "Spanish", "French", "Portuguese"])
 voice_gender = st.selectbox("Género de Voz:", ["Female", "Male"])
 up_file = st.file_uploader("Sube tu podcast", type=["mp3", "wav"])
@@ -85,42 +84,50 @@ if up_file and AZ_KEY:
         state = {"done": False}
         
         try:
-            with st.spinner(f"⌛ Procesando {up_file.name}..."):
-                # 1. Preparar audio (Conversión más rápida)
+            with st.spinner(f"⌛ Analizando y traduciendo..."):
                 audio = AudioSegment.from_file(up_file)
                 temp_wav = "temp_long.wav"
                 audio.set_frame_rate(16000).set_channels(1).export(temp_wav, format="wav", bitrate="256k")
 
-                # 2. Configuración de Azure
+                # CONFIGURACIÓN DE TRADUCCIÓN
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
-                t_cfg.speech_recognition_language = "es-ES" 
-                l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
-                t_cfg.add_target_language(l_map[target_lang])
                 
-                # Optimización de silencios para no perder tiempo
-                t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "3000")
+                # Mapeo de salida
+                l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
+                target_code = l_map[target_lang]
+                t_cfg.add_target_language(target_code)
+                
+                # DETECCIÓN AUTOMÁTICA MEJORADA
+                # Priorizamos inglés y español que son los más usados
+                auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES", "fr-FR", "pt-BR"])
+                
+                t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "4000")
 
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
-                recognizer = speechsdk.translation.TranslationRecognizer(translation_config=t_cfg, audio_config=audio_config)
+                
+                # Recognizer con detección de lenguaje de origen
+                recognizer = speechsdk.translation.TranslationRecognizer(
+                    translation_config=t_cfg, 
+                    audio_config=audio_config,
+                    auto_detect_source_language_config=auto_detect_config
+                )
 
-                # 3. Manejo de eventos
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        txt = evt.result.translations.get(l_map[target_lang], "")
-                        if txt: all_text.append(txt)
+                        # Extraemos la traducción específicamente del idioma destino seleccionado
+                        txt = evt.result.translations.get(target_code, "")
+                        if txt: 
+                            all_text.append(txt)
 
-                def stop_cb(evt):
-                    state["done"] = True
+                def stop_cb(evt): state["done"] = True
 
                 recognizer.recognized.connect(handle_final_result)
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
 
-                # 4. Proceso continuo
                 recognizer.start_continuous_recognition_async()
                 
                 progress_bar = st.progress(0)
-                # OPTIMIZACIÓN: Bucle de respuesta rápida (0.1s en vez de 1.0s)
                 while not state["done"]:
                     time.sleep(0.1) 
                     current_progress = min(len(all_text) * 2, 99)
@@ -129,8 +136,8 @@ if up_file and AZ_KEY:
                 recognizer.stop_continuous_recognition_async()
                 progress_bar.progress(100)
 
-                # 5. Generar Audio Final
                 full_script = " ".join(all_text).strip()
+                
                 if full_script:
                     s_cfg = speechsdk.SpeechConfig(subscription=AZ_KEY, region=AZ_REG)
                     voices = {
@@ -146,12 +153,12 @@ if up_file and AZ_KEY:
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success("✅ Completado.")
+                    st.success(f"✅ Doblado a {target_lang} correctamente.")
                     st.audio(final_mp3)
                     with open(final_mp3, "rb") as f:
                         st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("No se detectó texto.")
+                    st.error("No se pudo traducir. Asegúrate de que el audio original sea claro y esté en Inglés, Español, Francés o Portugués.")
 
                 if os.path.exists(temp_wav): os.remove(temp_wav)
 
@@ -166,3 +173,4 @@ with st.expander("📊 View Cloud DB Status (Admin Only)"):
             st.text(f.read())
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
