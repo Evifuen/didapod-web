@@ -39,8 +39,9 @@ def get_clean_secret(name):
     val = st.secrets.get(name, "")
     return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
 
-AZ_KEY = get_clean_secret("AZURE_KEY")
-AZ_REG = get_clean_secret("AZURE_SPEECH_REGION")
+
+AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+AZ_REG = os.getenv("AZURE_REGION", "")
 
 # --- 2. LOGIN OBLIGATORIO ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
@@ -173,4 +174,5 @@ with st.expander("📊 View Cloud DB Status (Admin Only)"):
             st.text(f.read())
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
