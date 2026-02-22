@@ -1,14 +1,12 @@
-name: Deploy-to-Azure
+name: Deploy
 on: [push]
 jobs:
-build-and-deploy:
+build:
 runs-on: ubuntu-latest
 steps:
-- name: Checkout Code
-uses: actions/checkout@v2
-- name: Login to Azure
-uses: azure/login@v1
+- uses: actions/checkout@v2
+- uses: azure/login@v1
 with:
 creds: ${{ secrets.AZURE_CREDENTIALS }}
-- name: Deploy Container
-run: az container create --resource-group didapod-resources --name didapod-final-app --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 8501
+- name: Azure CLI
+run: az container create --resource-group didapod-resources --name didapod-final-app --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 80
