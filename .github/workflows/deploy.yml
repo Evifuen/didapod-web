@@ -13,5 +13,18 @@ jobs:
 
       - run: - name: Deploy to Azure Container Instances
         run: |
-          az container delete --name didactaicontain --resource-group TU_GRUPO_RECURSOS --yes
-          az container create --resource-group TU_GRUPO_RECURSOS --name didactaicontain --image didactaicontain.azurecr.io/didactapod:latest --dns-name-label didapod-final-2026 --ports 80 --cpu 1 --memory 1.5 --registry-login-server didactaicontain.azurecr.io --registry-username ${{ secrets.AZURE_CLIENT_ID }} --registry-password ${{ secrets.AZURE_CLIENT_SECRET }} --location eastus
+          - name: Deploy to Azure Container Instances
+        run: 
+          az container delete --name didactaicontain --resource-group didapod --yes
+          az container create
+            --resource-group didapod
+            --name didactaicontain
+            --image didactaicontain.azurecr.io/didactapod:latest
+            --dns-name-label didapod-final-2026
+            --ports 80
+            --cpu 1
+            --memory 1.5
+            --registry-login-server didactaicontain.azurecr.io
+            --registry-username ${{ secrets.AZURE_CLIENT_ID }}
+            --registry-password ${{ secrets.AZURE_CLIENT_SECRET }}
+            --location eastus
