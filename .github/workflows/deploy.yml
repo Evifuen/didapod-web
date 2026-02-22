@@ -1,9 +1,14 @@
-    steps:
-      - uses: actions/checkout@v2
-      
-      - uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-          
-      - run: az container create --resource-group didapod-resources --name didapod-final-app-image --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-app --ports 80
+  name: Deploy
+on: [push]
 
+jobs:
+  build: # 2 espacios
+    runs-on: ubuntu-latest # 4 espacios
+    steps: # 4 espacios
+      - uses: actions/checkout@v2 # 6 espacios
+      
+      - uses: azure/login@v1 # 6 espacios
+        with: # 8 espacios
+          creds: ${{ secrets.AZURE_CREDENTIALS }} # 10 espacios
+          
+      - run: az container create --resource-group didapod-resources --name didapod-final-app --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 80
