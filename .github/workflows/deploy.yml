@@ -11,4 +11,4 @@ uses: azure/login@v1
 with:
 creds: ${{ secrets.AZURE_CREDENTIALS }}
 - name: Deploy Container
-run: az container create --resource-group didapod-resources --name didapod-final-app --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 80
+run: az container create --resource-group didapod-resources --name didapod-final-app --image didapodacr.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 8501
