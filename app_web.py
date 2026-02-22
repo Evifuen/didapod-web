@@ -189,3 +189,34 @@ with st.expander("📊 View Cloud DB Status (Admin Only)"):
 
 # Footer con copyright
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+st.markdown("""
+
+<style>
+.footer {
+position: fixed;
+left: 0;
+bottom: 0;
+width: 100%;
+background-color: white;
+color: #888888;
+text-align: center;
+font-size: 11px;
+padding: 5px;
+border-top: 1px solid #eeeeee;
+z-index: 100;
+}
+.footer a {
+color: #5555ff;
+text-decoration: none;
+margin: 0 8px;
+}
+</style>
+
+<div class="footer">
+<p>© 2026 DidaPod |
+<a href="" target="_blank">Privacy Policy</a> |
+<a href="" target="_blank">Terms of Service</a>
+</p>
+</div>
+""", unsafe_allow_html=True)
+
