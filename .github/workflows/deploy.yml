@@ -1,8 +1,8 @@
-name: CI-CD-Deploy-Check
+name: Deploy-to-Azure
 on: [push]
 jobs:
-test-build:
+build-and-deploy:
 runs-on: ubuntu-latest
 steps:
-- name: Code Check
-run: echo "Commit detected. Triggering automated build sequence..."
+- name: Checkout Code
+uses: actions/checkout@v2
