@@ -12,7 +12,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 'Deploy Version 11'
+      - name: 'Deploy Streamlit App'
         run: |
           az container delete --resource-group didapod --name didapod-final-app --yes
           az container create \
@@ -20,7 +20,7 @@ jobs:
             --name didapod-final-app \
             --image midictaicontainer.azurecr.io/didapod:v11 \
             --dns-name-label didapod-final-2026 \
-            --ports 80 \
+            --ports 8501 \
             --registry-username midictaicontainer \
             --registry-password 9Vurt983vDBLkflxMkxINCvpNa56eGTtYFCXIYyLtD4PwxHcoDtnJQQJ99CBACYeBjFEqg7NAAACAZCRnjFQ \
             --os-type Linux \
