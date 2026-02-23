@@ -14,5 +14,21 @@ jobs:
 
       - name: 'Clean and Deploy'
         run: |
+          # Obtenemos la contraseña directamente de Azure para que no falle el login
+          ACR_PASS=$(az acr repository show-credentials --name midictaicontainer --repository didapod --query "passwords[0].value" -o tsv)
+          
+          # Borramos el contenedor viejo
           az container delete --resource-group didapod --name didapod-final-app --yes
-          az container create --resource-group didapod --name didapod-final-app --image midictaicontainer.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 80 --registry-username midictaicontainer --registry-password ${{ secrets.ACR_PASSWORD }} --os-type Linux --cpu 1 --memory 1.5
+          
+          # Creamos el nuevo usando la clave fresca
+          az container create \
+            --resource-group didapod \
+            --name didapod-final-app \
+            --image midictaicontainer.azurecr.io/didapod:latest \
+            --dns-name-label didapod-final-2026 \
+            --ports 80 \
+            --registry-username midictaicontainer \
+            --registry-password $ACR_PASS \
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1.5
