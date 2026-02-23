@@ -12,7 +12,16 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 'Deploy Directo'
+      - name: 'Force New Deploy'
         run: |
-          az container delete --resource-group didapod --name didapod-final-app --yes
-          az container create --resource-group didapod --name didapod-final-app --image midictaicontainer.azurecr.io/didapod:latest --dns-name-label didapod-final-2026 --ports 80 --registry-username midictaicontainer --registry-password 9Vurt983vDBLkflxMkxINCvpNa56eGTtYFCXIYyLtD4PwxHcoDtnJQQJ99CBACYeBjFEqg7NAAACAZCRnjFQ --os-type Linux --cpu 1 --memory 1.5
+          az container create \
+            --resource-group didapod \
+            --name didapod-v3-app \
+            --image midictaicontainer.azurecr.io/didapod:latest \
+            --dns-name-label didapod-v3-2026 \
+            --ports 80 \
+            --registry-username midictaicontainer \
+            --registry-password 9Vurt983vDBLkflxMkxINCvpNa56eGTtYFCXIYyLtD4PwxHcoDtnJQQJ99CBACYeBjFEqg7NAAACAZCRnjFQ \
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1.5
