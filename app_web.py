@@ -216,6 +216,10 @@ st.markdown("""
 .footer-text { margin: 2px 0; }
 </style>
 <div class="footer">
+    <p class="footer-text"><strong>© 2026 DidaPod</strong> | Powered by Azure AI</p>
+    <p class="footer-text">
+        <a href="
+
 
 
 
