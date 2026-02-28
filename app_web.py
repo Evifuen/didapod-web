@@ -3,6 +3,8 @@ import azure.cognitiveservices.speech as speechsdk
 import os, time, base64, requests
 from datetime import datetime
 from pydub import AudioSegment
+import smtplib 
+from email.mime.text import MIMEText 
 
 # --- 0. CONFIGURACIÓN CLOUD (Google Sheets) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
@@ -32,16 +34,9 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stProgress > div > div > div > div { background-color: #7c3aed !important; }
+    .block-container { padding-bottom: 5rem; }
     </style>
     """, unsafe_allow_html=True)
-
-def get_clean_secret(name):
-    val = st.secrets.get(name, "")
-    return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
-
-
-AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
-AZ_REG = os.getenv("AZURE_REGION", "")
 
 # --- 2. LOGIN OBLIGATORIO ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
@@ -73,10 +68,14 @@ with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
-target_lang = st.selectbox("Idioma Destino:", ["English", "Spanish", "French", "Portuguese"])
-voice_gender = st.selectbox("Género de Voz:", ["Female", "Male"])
-up_file = st.file_uploader("Sube tu podcast", type=["mp3", "wav"])
+# --- 4. MOTOR DE DOBLAJE ---
+target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
+voice_gender = st.selectbox("Voice Gender Selection:", ["Female", "Male"])
+up_file = st.file_uploader("Upload your Podcast", type=["mp3", "wav"])
+
+# Obtener credenciales de entorno
+AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+AZ_REG = os.getenv("AZURE_REGION", "")
 
 if up_file and AZ_KEY:
     st.audio(up_file)
@@ -92,21 +91,13 @@ if up_file and AZ_KEY:
 
                 # CONFIGURACIÓN DE TRADUCCIÓN
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
-                
-                # Mapeo de salida
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 target_code = l_map[target_lang]
                 t_cfg.add_target_language(target_code)
-                
-                # DETECCIÓN AUTOMÁTICA MEJORADA
-                # Priorizamos inglés y español que son los más usados
                 auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES", "fr-FR", "pt-BR"])
-                
                 t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "4000")
-
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 
-                # Recognizer con detección de lenguaje de origen
                 recognizer = speechsdk.translation.TranslationRecognizer(
                     translation_config=t_cfg, 
                     audio_config=audio_config,
@@ -115,17 +106,13 @@ if up_file and AZ_KEY:
 
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        # Extraemos la traducción específicamente del idioma destino seleccionado
                         txt = evt.result.translations.get(target_code, "")
-                        if txt: 
-                            all_text.append(txt)
+                        if txt: all_text.append(txt)
 
                 def stop_cb(evt): state["done"] = True
-
                 recognizer.recognized.connect(handle_final_result)
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
-
                 recognizer.start_continuous_recognition_async()
                 
                 progress_bar = st.progress(0)
@@ -136,7 +123,6 @@ if up_file and AZ_KEY:
                 
                 recognizer.stop_continuous_recognition_async()
                 progress_bar.progress(100)
-
                 full_script = " ".join(all_text).strip()
                 
                 if full_script:
@@ -148,23 +134,20 @@ if up_file and AZ_KEY:
                         "Portuguese": {"Female": "pt-BR-FranciscaNeural", "Male": "pt-BR-AntonioNeural"}
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
-                    
                     final_mp3 = "result_long.mp3"
                     syn = speechsdk.SpeechSynthesizer(s_cfg, speechsdk.audio.AudioOutputConfig(filename=final_mp3))
                     syn.speak_text_async(full_script).get()
-
-                    st.balloons()
-                    st.success(f"✅ Doblado a {target_lang} correctamente.")
+                    st.success(f"✅ Dubbed to {target_lang} correctly.")
                     st.audio(final_mp3)
                     with open(final_mp3, "rb") as f:
                         st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("No se pudo traducir. Asegúrate de que el audio original sea claro y esté en Inglés, Español, Francés o Portugués.")
+                    st.error("Unable to translate.")
 
                 if os.path.exists(temp_wav): os.remove(temp_wav)
-
         except Exception as e:
             st.error(f"Error: {e}")
+
 # --- 5. SUPPORT FORM ---
 st.write("---")
 with st.expander("✉️ Contact Support"):
@@ -178,9 +161,9 @@ with st.expander("✉️ Contact Support"):
             # --- CONFIGURACIÓN DE CORREO ---
             SMTP_SERVER = "smtp.office365.com"
             SMTP_PORT = 587
-            SENDER_EMAIL = "Eve@didacta-us.com"
+            SENDER_EMAIL = "Eve@didactai-us.com"
             SENDER_PASSWORD = "Efmazf1858208*"
-            RECEIVER_EMAIL = "Eve@didacta-us.com"
+            RECEIVER_EMAIL = "Eve@didactai-us.com"
             # --------------------------------
             
             msg = MIMEText(f"Nombre: {name}\nCorreo: {email}\n\nMensaje:\n{message}")
@@ -197,15 +180,19 @@ with st.expander("✉️ Contact Support"):
                 st.success("✅ Message sent successfully!")
             except Exception as e:
                 st.error(f"❌ Error sending message: {e}")
-# --- 6. ADMIN ---
+
+# --- 6. ADMIN SECTION ---
 st.write("---")
 with st.expander("📊 View Cloud DB Status (Admin Only)"):
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
-            st.text(f.read())
+            emails_data = f.read()
+            if emails_data: st.text(emails_data)
+            else: st.info("The database is currently empty.")
+    else:
+        st.error("Database file 'database_emails.txt' not found.")
 
-st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
-# --- FOOTER ACTUALIZADO CON INFO LEGAL ---
+# --- FOOTER ---
 st.markdown("""
 <style>
 .footer {
@@ -226,11 +213,8 @@ st.markdown("""
     text-decoration: none;
     margin: 0 10px;
 }
-.footer-text {
-    margin: 2px 0;
-}
+.footer-text { margin: 2px 0; }
 </style>
-
 <div class="footer">
     <p class="footer-text"><strong>© 2026 DidaPod</strong> | Powered by Azure AI</p>
     <p class="footer-text">
@@ -239,6 +223,13 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+    <p class="footer-text">
+        <a href="https://www.microsoft.com/en-us/trust-center/privacy" target="_blank">Privacy Policy</a> |
+        <a href="https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default" target="_blank">Terms of Service</a>
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 
 
 
