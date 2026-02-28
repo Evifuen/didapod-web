@@ -91,8 +91,8 @@ if up_file:
         st.error("❌ Error de configuración: Claves de Azure no encontradas en el entorno.")
     else:
         if st.button("🚀 START AI DUBBING"):
-        all_text = []
-        state = {"done": False}
+            all_text = []
+            state = {"done": False}
         
         try:
             with st.spinner(f"⌛ Analyzing and translating..."):
@@ -215,6 +215,7 @@ with st.expander("⚖️ Privacy Policy & Support"):
             st.success("Message received! We will contact you soon.")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
