@@ -78,7 +78,7 @@ target_lang = st.selectbox("Target language:", ["English", "Spanish", "French", 
 voice_gender = st.selectbox("Voice genre:", ["Female", "Male"])
 up_file = st.file_uploader("Upload your podcast", type=["mp3", "wav"])
 
-if up_file:
+if up_file and AZ_KEY:
     st.audio(up_file)
     if st.button("🚀 START AI DUBBING"):
         all_text = []
@@ -235,4 +235,5 @@ with st.expander("⚖️ Privacy Policy"):
     """)
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
