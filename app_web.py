@@ -76,7 +76,10 @@ with col_l:
 with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
-
+# --- DEBUGGING ---
+st.write(f"DEBUG: Clave Azure presente? {'Sí' if AZ_KEY else 'No'}")
+st.write(f"DEBUG: Archivo subido? {'Sí' if up_file else 'No'}")
+# -----------------
 # --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
 target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
 voice_gender = st.selectbox("Voice Gender Selection:", ["Female", "Male"])
@@ -251,5 +254,6 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
