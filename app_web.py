@@ -3,8 +3,6 @@ import azure.cognitiveservices.speech as speechsdk
 import os, time, base64, requests
 from datetime import datetime
 from pydub import AudioSegment
-import smtplib 
-from email.mime.text import MIMEText 
 
 # --- 0. CONFIGURACIÓN CLOUD (Google Sheets) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
@@ -34,8 +32,6 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stProgress > div > div > div > div { background-color: #7c3aed !important; }
-    /* Ajuste para que el footer no tape contenido */
-    .block-container { padding-bottom: 5rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -76,14 +72,11 @@ with col_l:
 with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
-# --- DEBUGGING ---
-st.write(f"DEBUG: Clave Azure presente? {'Sí' if AZ_KEY else 'No'}")
-st.write(f"DEBUG: Archivo subido? {'Sí' if up_file else 'No'}")
-# -----------------
+
 # --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
-target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
-voice_gender = st.selectbox("Voice Gender Selection:", ["Female", "Male"])
-up_file = st.file_uploader("Upload your Podcast", type=["mp3", "wav"])
+target_lang = st.selectbox("Idioma Destino:", ["English", "Spanish", "French", "Portuguese"])
+voice_gender = st.selectbox("Género de Voz:", ["Female", "Male"])
+up_file = st.file_uploader("Sube tu podcast", type=["mp3", "wav"])
 
 if up_file and AZ_KEY:
     st.audio(up_file)
@@ -106,6 +99,7 @@ if up_file and AZ_KEY:
                 t_cfg.add_target_language(target_code)
                 
                 # DETECCIÓN AUTOMÁTICA MEJORADA
+                # Priorizamos inglés y español que son los más usados
                 auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES", "fr-FR", "pt-BR"])
                 
                 t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "4000")
@@ -121,6 +115,7 @@ if up_file and AZ_KEY:
 
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
+                        # Extraemos la traducción específicamente del idioma destino seleccionado
                         txt = evt.result.translations.get(target_code, "")
                         if txt: 
                             all_text.append(txt)
@@ -159,18 +154,17 @@ if up_file and AZ_KEY:
                     syn.speak_text_async(full_script).get()
 
                     st.balloons()
-                    st.success(f"✅folded to {target_lang} correctly.")
+                    st.success(f"✅ Doblado a {target_lang} correctamente.")
                     st.audio(final_mp3)
                     with open(final_mp3, "rb") as f:
                         st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("Unable to translate. Please ensure the original audio is clear and in English, Spanish, French, or Portuguese.")
+                    st.error("No se pudo traducir. Asegúrate de que el audio original sea claro y esté en Inglés, Español, Francés o Portugués.")
 
                 if os.path.exists(temp_wav): os.remove(temp_wav)
 
         except Exception as e:
             st.error(f"Error: {e}")
-
 # --- 5. SUPPORT FORM ---
 st.write("---")
 with st.expander("✉️ Contact Support"):
@@ -203,23 +197,14 @@ with st.expander("✉️ Contact Support"):
                 st.success("✅ Message sent successfully!")
             except Exception as e:
                 st.error(f"❌ Error sending message: {e}")
-
-# --- 6. ADMIN SECTION ---
+# --- 6. ADMIN ---
 st.write("---")
-
-# Se eliminó la sidebar legal y se movió abajo
-
 with st.expander("📊 View Cloud DB Status (Admin Only)"):
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
-            emails_data = f.read()
-            if emails_data:
-                st.text(emails_data)
-            else:
-                st.info("The database is currently empty.")
-    else:
-        st.error("Database file 'database_emails.txt' not found.")
+            st.text(f.read())
 
+st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 # --- FOOTER ACTUALIZADO CON INFO LEGAL ---
 st.markdown("""
 <style>
@@ -254,6 +239,7 @@ st.markdown("""
     </p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
