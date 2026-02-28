@@ -3,8 +3,6 @@ import azure.cognitiveservices.speech as speechsdk
 import os, time, base64, requests
 from datetime import datetime
 from pydub import AudioSegment
-import smtplib 
-from email.mime.text import MIMEText 
 
 # --- 0. CONFIGURACIÓN CLOUD (Google Sheets) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
@@ -34,9 +32,16 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stProgress > div > div > div > div { background-color: #7c3aed !important; }
-    .block-container { padding-bottom: 5rem; }
     </style>
     """, unsafe_allow_html=True)
+
+def get_clean_secret(name):
+    val = st.secrets.get(name, "")
+    return "".join(str(val).split()).replace('"', '').replace("'", "").strip()
+
+
+AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+AZ_REG = os.getenv("AZURE_REGION", "")
 
 # --- 2. LOGIN OBLIGATORIO ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
@@ -68,14 +73,10 @@ with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR DE DOBLAJE ---
-target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
-voice_gender = st.selectbox("Voice Gender Selection:", ["Female", "Male"])
-up_file = st.file_uploader("Upload your Podcast", type=["mp3", "wav"])
-
-# Obtener credenciales de entorno
-AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
-AZ_REG = os.getenv("AZURE_REGION", "")
+# --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
+target_lang = st.selectbox("Target language:", ["English", "Spanish", "French", "Portuguese"])
+voice_gender = st.selectbox("Voice genre:", ["Female", "Male"])
+up_file = st.file_uploader("Upload your podcast", type=["mp3", "wav"])
 
 if up_file and AZ_KEY:
     st.audio(up_file)
@@ -84,20 +85,28 @@ if up_file and AZ_KEY:
         state = {"done": False}
         
         try:
-            with st.spinner(f"⌛ Analizando y traduciendo..."):
+            with st.spinner(f"⌛ Analyzing and translating..."):
                 audio = AudioSegment.from_file(up_file)
                 temp_wav = "temp_long.wav"
                 audio.set_frame_rate(16000).set_channels(1).export(temp_wav, format="wav", bitrate="256k")
 
                 # CONFIGURACIÓN DE TRADUCCIÓN
                 t_cfg = speechsdk.translation.SpeechTranslationConfig(subscription=AZ_KEY, region=AZ_REG)
+                
+                # Mapeo de salida
                 l_map = {"English": "en", "Spanish": "es", "French": "fr", "Portuguese": "pt"}
                 target_code = l_map[target_lang]
                 t_cfg.add_target_language(target_code)
+                
+                # DETECCIÓN AUTOMÁTICA MEJORADA
+                # Priorizamos inglés y español que son los más usados
                 auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES", "fr-FR", "pt-BR"])
+                
                 t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "4000")
+
                 audio_config = speechsdk.audio.AudioConfig(filename=temp_wav)
                 
+                # Recognizer con detección de lenguaje de origen
                 recognizer = speechsdk.translation.TranslationRecognizer(
                     translation_config=t_cfg, 
                     audio_config=audio_config,
@@ -106,13 +115,17 @@ if up_file and AZ_KEY:
 
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
+                        # Extraemos la traducción específicamente del idioma destino seleccionado
                         txt = evt.result.translations.get(target_code, "")
-                        if txt: all_text.append(txt)
+                        if txt: 
+                            all_text.append(txt)
 
                 def stop_cb(evt): state["done"] = True
+
                 recognizer.recognized.connect(handle_final_result)
                 recognizer.session_stopped.connect(stop_cb)
                 recognizer.canceled.connect(stop_cb)
+
                 recognizer.start_continuous_recognition_async()
                 
                 progress_bar = st.progress(0)
@@ -123,6 +136,7 @@ if up_file and AZ_KEY:
                 
                 recognizer.stop_continuous_recognition_async()
                 progress_bar.progress(100)
+
                 full_script = " ".join(all_text).strip()
                 
                 if full_script:
@@ -134,95 +148,29 @@ if up_file and AZ_KEY:
                         "Portuguese": {"Female": "pt-BR-FranciscaNeural", "Male": "pt-BR-AntonioNeural"}
                     }
                     s_cfg.speech_synthesis_voice_name = voices[target_lang][voice_gender]
+                    
                     final_mp3 = "result_long.mp3"
                     syn = speechsdk.SpeechSynthesizer(s_cfg, speechsdk.audio.AudioOutputConfig(filename=final_mp3))
                     syn.speak_text_async(full_script).get()
-                    st.success(f"✅ Dubbed to {target_lang} correctly.")
+
+                    st.balloons()
+                    st.success(f"✅ Folded to {target_lang} correctly.")
                     st.audio(final_mp3)
                     with open(final_mp3, "rb") as f:
                         st.download_button("📥 DOWNLOAD", f, "didapod_result.mp3")
                 else:
-                    st.error("Unable to translate.")
+                    st.error("Unable to translate. Please ensure the original audio is clear and in English, Spanish, French or Portuguese.")
 
                 if os.path.exists(temp_wav): os.remove(temp_wav)
+
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- 5. SUPPORT FORM ---
-st.write("---")
-with st.expander("✉️ Contact Support"):
-    with st.form("support_form"):
-        name = st.text_input("Name")
-        email = st.text_input("Email")
-        message = st.text_area("Message")
-        submit = st.form_submit_button("Send Message")
-        
-        if submit:
-            # --- CONFIGURACIÓN DE CORREO ---
-            SMTP_SERVER = "smtp.office365.com"
-            SMTP_PORT = 587
-            SENDER_EMAIL = "tu_correo@outlook.com"
-            SENDER_PASSWORD = "tu_contraseña"
-            RECEIVER_EMAIL = "tu_correo_de_soporte@dominio.com"
-            # --------------------------------
-            
-            msg = MIMEText(f"Nombre: {name}\nCorreo: {email}\n\nMensaje:\n{message}")
-            msg['Subject'] = 'Soporte Didapod'
-            msg['From'] = SENDER_EMAIL
-            msg['To'] = RECEIVER_EMAIL
-
-            try:
-                server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-                server.starttls()
-                server.login(SENDER_EMAIL, SENDER_PASSWORD)
-                server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
-                server.quit()
-                st.success("✅ Message sent successfully!")
-            except Exception as e:
-                st.error(f"❌ Error sending message: {e}")
-
-# --- 6. ADMIN SECTION ---
+# --- 5. ADMIN ---
 st.write("---")
 with st.expander("📊 View Cloud DB Status (Admin Only)"):
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
-            emails_data = f.read()
-            if emails_data: st.text(emails_data)
-            else: st.info("The database is currently empty.")
-    else:
-        st.error("Database file 'database_emails.txt' not found.")
+            st.text(f.read())
 
-# --- FOOTER ---
-st.markdown("""
-<style>
-.footer {
-    position: fixed;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    background-color: #1e293b;
-    color: #e2e8f0;
-    text-align: center;
-    font-size: 12px;
-    padding: 10px;
-    border-top: 1px solid #475569;
-    z-index: 1000;
-}
-.footer a {
-    color: #a78bfa;
-    text-decoration: none;
-    margin: 0 10px;
-}
-.footer-text { margin: 2px 0; }
-</style>
-<div class="footer">
-    <p class="footer-text"><strong>© 2026 DidaPod</strong> | Powered by Azure AI</p>
-    <p class="footer-text">
-        <a href="
-
-
-
-
-
-
-
+st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
