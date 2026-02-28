@@ -3,6 +3,8 @@ import azure.cognitiveservices.speech as speechsdk
 import os, time, base64, requests
 from datetime import datetime
 from pydub import AudioSegment
+import smtplib 
+from email.mime.text import MIMEText 
 
 # --- 0. CONFIGURACIÓN CLOUD (Google Sheets) ---
 APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLIO5CsYs-7Z2xt335yT2ZQx9Hp3sxfVY7Bzvpdmu3LsD6uHTxvpukLHb2AAjMvDk2qA/exec"
@@ -32,6 +34,8 @@ st.markdown("""
     }
     h1, h2, h3, label, p, span { color: white !important; }
     .stProgress > div > div > div > div { background-color: #7c3aed !important; }
+    /* Ajuste para que el footer no tape contenido */
+    .block-container { padding-bottom: 5rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,7 +103,6 @@ if up_file and AZ_KEY:
                 t_cfg.add_target_language(target_code)
                 
                 # DETECCIÓN AUTOMÁTICA MEJORADA
-                # Priorizamos inglés y español que son los más usados
                 auto_detect_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES", "fr-FR", "pt-BR"])
                 
                 t_cfg.set_property(speechsdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "4000")
@@ -115,7 +118,6 @@ if up_file and AZ_KEY:
 
                 def handle_final_result(evt):
                     if evt.result.reason == speechsdk.ResultReason.TranslatedSpeech:
-                        # Extraemos la traducción específicamente del idioma destino seleccionado
                         txt = evt.result.translations.get(target_code, "")
                         if txt: 
                             all_text.append(txt)
@@ -166,17 +168,45 @@ if up_file and AZ_KEY:
         except Exception as e:
             st.error(f"Error: {e}")
 
-# --- 5. ADMIN SECTION ---
+# --- 5. SUPPORT FORM ---
+st.write("---")
+with st.expander("✉️ Contact Support"):
+    with st.form("support_form"):
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+        message = st.text_area("Message")
+        submit = st.form_submit_button("Send Message")
+        
+        if submit:
+            # --- CONFIGURACIÓN DE CORREO ---
+            SMTP_SERVER = "smtp.office365.com"
+            SMTP_PORT = 587
+            SENDER_EMAIL = "Eve@didacta-us.com"
+            SENDER_PASSWORD = "Efmazf1858208*"
+            RECEIVER_EMAIL = "Eve@didacta-us.com"
+            # --------------------------------
+            
+            msg = MIMEText(f"Nombre: {name}\nCorreo: {email}\n\nMensaje:\n{message}")
+            msg['Subject'] = 'Soporte Didapod'
+            msg['From'] = SENDER_EMAIL
+            msg['To'] = RECEIVER_EMAIL
+
+            try:
+                server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+                server.starttls()
+                server.login(SENDER_EMAIL, SENDER_PASSWORD)
+                server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
+                server.quit()
+                st.success("✅ Message sent successfully!")
+            except Exception as e:
+                st.error(f"❌ Error sending message: {e}")
+
+# --- 6. ADMIN SECTION ---
 st.write("---")
 
-with st.sidebar:
-    st.markdown("### ⚖️ Legal Information")
-    st.info("This app processes audio using Azure AI. No data is stored permanently.")
-    st.markdown("[Privacy Policy](https://www.microsoft.com/en-us/trust-center/privacy)")
-    st.markdown("[Terms of Service](https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default)")
+# Se eliminó la sidebar legal y se movió abajo
 
 with st.expander("📊 View Cloud DB Status (Admin Only)"):
-    # Verificamos si el archivo existe antes de intentar leerlo
     if os.path.exists("database_emails.txt"):
         with open("database_emails.txt", "r") as f:
             emails_data = f.read()
@@ -187,36 +217,38 @@ with st.expander("📊 View Cloud DB Status (Admin Only)"):
     else:
         st.error("Database file 'database_emails.txt' not found.")
 
-# Footer con copyright
-st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+# --- FOOTER ACTUALIZADO CON INFO LEGAL ---
 st.markdown("""
-
 <style>
 .footer {
-position: fixed;
-left: 0;
-bottom: 0;
-width: 100%;
-background-color: white;
-color: #888888;
-text-align: center;
-font-size: 11px;
-padding: 5px;
-border-top: 1px solid #eeeeee;
-z-index: 100;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    background-color: #1e293b;
+    color: #e2e8f0;
+    text-align: center;
+    font-size: 12px;
+    padding: 10px;
+    border-top: 1px solid #475569;
+    z-index: 1000;
 }
 .footer a {
-color: #5555ff;
-text-decoration: none;
-margin: 0 8px;
+    color: #a78bfa;
+    text-decoration: none;
+    margin: 0 10px;
+}
+.footer-text {
+    margin: 2px 0;
 }
 </style>
 
 <div class="footer">
-<p>© 2026 DidaPod |
-<a href="" target="_blank">Privacy Policy</a> |
-<a href="" target="_blank">Terms of Service</a>
-</p>
+    <p class="footer-text"><strong>© 2026 DidaPod</strong> | Powered by Azure AI</p>
+    <p class="footer-text">
+        <a href="https://www.microsoft.com/en-us/trust-center/privacy" target="_blank">Privacy Policy</a> |
+        <a href="https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default" target="_blank">Terms of Service</a>
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
