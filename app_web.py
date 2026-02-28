@@ -161,9 +161,9 @@ with st.expander("✉️ Contact Support"):
             # --- CONFIGURACIÓN DE CORREO ---
             SMTP_SERVER = "smtp.office365.com"
             SMTP_PORT = 587
-            SENDER_EMAIL = "Eve@didactai-us.com"
-            SENDER_PASSWORD = "Efmazf1858208*"
-            RECEIVER_EMAIL = "Eve@didactai-us.com"
+            SENDER_EMAIL = "tu_correo@outlook.com"
+            SENDER_PASSWORD = "tu_contraseña"
+            RECEIVER_EMAIL = "tu_correo_de_soporte@dominio.com"
             # --------------------------------
             
             msg = MIMEText(f"Nombre: {name}\nCorreo: {email}\n\nMensaje:\n{message}")
@@ -216,19 +216,7 @@ st.markdown("""
 .footer-text { margin: 2px 0; }
 </style>
 <div class="footer">
-    <p class="footer-text"><strong>© 2026 DidaPod</strong> | Powered by Azure AI</p>
-    <p class="footer-text">
-        <a href="https://www.microsoft.com/en-us/trust-center/privacy" target="_blank">Privacy Policy</a> |
-        <a href="https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default" target="_blank">Terms of Service</a>
-    </p>
-</div>
-""", unsafe_allow_html=True)
-    <p class="footer-text">
-        <a href="https://www.microsoft.com/en-us/trust-center/privacy" target="_blank">Privacy Policy</a> |
-        <a href="https://www.microsoft.com/en-us/legal/intellectualproperty/copyright/default" target="_blank">Terms of Service</a>
-    </p>
-</div>
-""", unsafe_allow_html=True)
+
 
 
 
