@@ -173,4 +173,65 @@ with st.expander("📊 View Cloud DB Status (Admin Only)"):
         with open("database_emails.txt", "r") as f:
             st.text(f.read())
 
+# --- 6. PRIVACY POLICY & SUPPORT ---
+st.write("---")
+with st.expander("⚖️ Privacy Policy & Support"):
+    st.markdown("""
+    **Effective Date:** January 1, 2026
+    
+    At **DidactAI-US**, we respect your privacy.
+    
+    1.  **Data Collection:** We collect your email address and login timestamps to manage access to this tool.
+    2.  **Usage:** Your uploaded audio files are processed in real-time to generate dubbed versions and are not permanently stored on our servers.
+    3.  **Third Parties:** We use Microsoft Azure Speech Services to process audio. Data processed by Azure is subject to their privacy policies.
+    4.  **Security:** We take reasonable measures to protect your information.
+    
+    By using this tool, you agree to these terms.
+    
+    ***
+    
+    ### 📞 Support
+    If you have any questions or need assistance, please contact us:
+    📧 **Email:** support@didactai.com
+    """)
+    
+    # Formulario de soporte básico
+    with st.form("support_form"):
+        st.subheader("Send us a message")
+        contact_email = st.text_input("Your Email")
+        message = st.text_area("Message")
+        submit_button = st.form_submit_button("Send Support Request")
+        if submit_button and contact_email:
+            st.success("Message received! We will contact you soon.")
+
+st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
+                if os.path.exists(temp_wav): os.remove(temp_wav)
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# --- 5. ADMIN ---
+st.write("---")
+with st.expander("📊 View Cloud DB Status (Admin Only)"):
+    if os.path.exists("database_emails.txt"):
+        with open("database_emails.txt", "r") as f:
+            st.text(f.read())
+
+# --- 6. PRIVACY POLICY ---
+st.write("---")
+with st.expander("⚖️ Privacy Policy"):
+    st.markdown("""
+    **Effective Date:** January 1, 2026
+    
+    At **DidactAI-US**, we respect your privacy.
+    
+    1.  **Data Collection:** We collect your email address and login timestamps to manage access to this tool.
+    2.  **Usage:** Your uploaded audio files are processed in real-time to generate dubbed versions and are not permanently stored on our servers.
+    3.  **Third Parties:** We use Microsoft Azure Speech Services to process audio. Data processed by Azure is subject to their privacy policies.
+    4.  **Security:** We take reasonable measures to protect your information.
+    
+    By using this tool, you agree to these terms.
+    """)
+
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
