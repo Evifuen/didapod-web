@@ -73,14 +73,24 @@ with col_r:
     st.markdown("<h1 style='margin:0;'>🎙️ DIDAPOD PRO</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color:#94a3b8 !important; margin:0;'>Global Language Support</p>", unsafe_allow_html=True)
 
-# --- 4. MOTOR CON DETECCIÓN AUTOMÁTICA REFORZADA ---
-target_lang = st.selectbox("Target language:", ["English", "Spanish", "French", "Portuguese"])
-voice_gender = st.selectbox("Voice genre:", ["Female", "Male"])
-up_file = st.file_uploader("Upload your podcast", type=["mp3", "wav"])
+# --- 4. MOTOR DE DOBLAJE ---
+target_lang = st.selectbox("Target Language:", ["English", "Spanish", "French", "Portuguese"])
+voice_gender = st.selectbox("Voice Gender Selection:", ["Female", "Male"])
+up_file = st.file_uploader("Upload your Podcast", type=["mp3", "wav"])
 
-if up_file and AZ_KEY:
+# Muestra el reproductor y el botón inmediatamente
+if up_file:
     st.audio(up_file)
-    if st.button("🚀 START AI DUBBING"):
+    
+    # --- AQUÍ ESTÁ LA CLAVE: Leer variables de entorno ---
+    AZ_KEY = os.getenv("AZURE_SPEECH_KEY", "")
+    AZ_REG = os.getenv("AZURE_REGION", "")
+
+    # Solo mostrar el botón si las claves existen (o si prefieres, mostrarlo siempre y dar error al hacer clic)
+    if not AZ_KEY or not AZ_REG:
+        st.error("❌ Error de configuración: Claves de Azure no encontradas en el entorno.")
+    else:
+        if st.button("🚀 START AI DUBBING"):
         all_text = []
         state = {"done": False}
         
@@ -205,6 +215,7 @@ with st.expander("⚖️ Privacy Policy & Support"):
             st.success("Message received! We will contact you soon.")
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
 
