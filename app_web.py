@@ -206,7 +206,7 @@ with st.expander("⚖️ Privacy Policy & Support"):
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
 
-                if os.path.exists(temp_wav): os.remove(temp_wav)
+               if os.path.exists(temp_wav): os.remove(temp_wav)
 
         except Exception as e:
             st.error(f"Error: {e}")
@@ -235,5 +235,6 @@ with st.expander("⚖️ Privacy Policy"):
     """)
 
 st.markdown("<br><hr><center><small>© 2026 DidactAI-US</small></center>", unsafe_allow_html=True)
+
 
 
